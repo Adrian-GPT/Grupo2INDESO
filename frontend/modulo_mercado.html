@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InvestAI | Dashboard de Mercado</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          navy: { deep: '#0A1428', base: '#0D1B33', card: '#122548', border: '#1F3864' },
+          teal: '#26A69A', mint: '#4ADE80', gold: '#C5961A', sky: '#3B82F6', coral: '#EF5350',
+          ink: { 100: '#E2E8F3', 300: '#9FB0CE', 500: '#6B7A99' }
+        },
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+      }
+    }
+  };
+</script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
+<style>
+  a:focus-visible, button:focus-visible, select:focus-visible { outline: 2px solid #4ADE80; outline-offset: 3px; border-radius: 0.5rem; }
+  ::selection { background: #26A69A; color: #0A1428; }
+</style>
+</head>
+
+<body class="bg-navy-base text-ink-100 font-sans antialiased">
+
+  <!-- ============ HEADER ============ -->
+  <header class="border-b border-navy-border/60 bg-navy-deep/40">
+    <div class="max-w-6xl mx-auto px-6 py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-teal/15 text-teal flex items-center justify-center shrink-0">
+          <i data-lucide="candlestick-chart" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">Ernesto Investing AI</h1>
+          <p class="text-sm text-ink-300">Dashboard de Mercado — Datos reales vía API</p>
+        </div>
+      </div>
+      <nav class="flex flex-wrap gap-2">
+        <a href="index.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-navy-border text-ink-300 text-sm hover:border-teal/60 hover:text-teal transition-colors">
+          <i data-lucide="home" class="w-4 h-4"></i> Portal
+        </a>
+        <a href="modulo_svc.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-navy-border text-ink-300 text-sm hover:border-mint/60 hover:text-mint transition-colors">
+          <i data-lucide="shield-check" class="w-4 h-4"></i> Clasificador SVC
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ============ CONTROLES ============ -->
+  <section class="border-b border-navy-border/60 bg-navy-card/30">
+    <div class="max-w-6xl mx-auto px-6 py-5 flex flex-wrap items-end gap-4">
+      <div class="flex flex-col gap-1.5">
+        <label for="selTicker" class="text-xs font-semibold uppercase tracking-wide text-ink-300">Ticker</label>
+        <select id="selTicker" onchange="cargarDatos()"
+          class="px-4 py-2.5 rounded-xl bg-navy-deep border border-navy-border text-ink-100 text-sm focus:border-teal outline-none">
+          <option value="FSM">FSM — Fortuna Silver</option>
+          <option value="VOLCABC1.LM">VOLCABC1.LM — Volcan</option>
+          <option value="ABX.TO">ABX.TO — Barrick Gold</option>
+          <option value="BVN" selected>BVN — Buenaventura</option>
+          <option value="BHP">BHP — BHP Billiton</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CONTENIDO ============ -->
+  <main class="max-w-6xl mx-auto px-6 py-8">
+    <div id="aviso" class="mb-6"></div>
+
+    <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6">
+      <div class="flex items-center gap-2 mb-4">
+        <i data-lucide="line-chart" class="w-4 h-4 text-teal"></i>
+        <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Precio con Indicadores Técnicos (Datos Reales de Yahoo Finance vía MongoDB)</span>
+      </div>
+      <div id="grafico" style="width:100%;height:480px;"></div>
+    </div>
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="border-t border-navy-border/60 bg-navy-deep/40 mt-8">
+    <div class="max-w-6xl mx-auto px-6 py-8 text-sm text-ink-500 text-center">
+      Ernesto Investing AI — iDeSo · UNMSM · Prof. E. D. Cancho-Rodríguez, MBA (GWU)
+    </div>
+  </footer>
+
+<script>
+lucide.createIcons();
+
+function getApiUrl(){ return sessionStorage.getItem('API_URL'); }
+
+function mostrarAviso(tipo, html){
+  const aviso = document.getElementById('aviso');
+  const estilos = {
+    info:  'bg-navy-card/60 text-ink-300 border-navy-border',
+    error: 'bg-coral/10 text-coral border-coral/30'
+  };
+  const icono = tipo === 'error' ? 'x-circle' : 'loader';
+  aviso.innerHTML = '<div class="inline-flex items-start gap-2 px-4 py-3 rounded-xl border text-sm ' + estilos[tipo] + '">'
+    + '<i data-lucide="' + icono + '" class="w-4 h-4 mt-0.5 shrink-0 ' + (tipo==='info' ? 'animate-spin' : '') + '"></i>'
+    + '<span>' + html + '</span></div>';
+  lucide.createIcons();
+}
+
+async function cargarDatos(){
+  const apiUrl = getApiUrl();
+  const ticker = document.getElementById('selTicker').value;
+  if(!apiUrl){
+    mostrarAviso('error', 'No hay URL de API. Vuelve al <a href="index.html" class="underline">portal</a> y verifica la conexión.');
+    return;
+  }
+  mostrarAviso('info', 'Cargando datos de ' + ticker + '...');
+  try{
+    const r = await fetch(apiUrl + '/api/mercado/' + ticker, { headers: { 'ngrok-skip-browser-warning': 'true' } });
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    renderizar(data);
+    document.getElementById('aviso').innerHTML = '';
+  }catch(e){
+    mostrarAviso('error', 'Error: ' + e.message + '. Verifica que el Notebook 3 esté activo.');
+  }
+}
+
+function renderizar(data){
+  const d = data.datos, f = d.map(x => x.fecha);
+  Plotly.newPlot('grafico', [
+    { type:'candlestick', x:f, open:d.map(x=>x.open), high:d.map(x=>x.high), low:d.map(x=>x.low), close:d.map(x=>x.close),
+      increasing:{ line:{ color:'#4ADE80' } }, decreasing:{ line:{ color:'#EF5350' } }, name:data.ticker },
+    { x:f, y:d.map(x=>x.sma_20), type:'scatter', mode:'lines', name:'SMA 20', line:{ color:'#C5961A', width:1.5 } },
+    { x:f, y:d.map(x=>x.sma_50), type:'scatter', mode:'lines', name:'SMA 50', line:{ color:'#3B82F6', width:1.5 } }
+  ], {
+    paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+    font:{ color:'#9FB0CE', family:'Inter, sans-serif' },
+    xaxis:{ rangeslider:{ visible:false }, gridcolor:'#1F3864' },
+    yaxis:{ title:'Precio (USD)', gridcolor:'#1F3864' },
+    margin:{ t:20, b:40 },
+    legend:{ orientation:'h', y:-0.15 }
+  }, { responsive:true });
+}
+
+window.addEventListener('DOMContentLoaded', cargarDatos);
+</script>
+</body>
+</html>
