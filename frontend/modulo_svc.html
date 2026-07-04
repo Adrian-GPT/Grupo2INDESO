@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InvestAI | Clasificador SVC</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          navy: { deep: '#0A1428', base: '#0D1B33', card: '#122548', border: '#1F3864' },
+          teal: '#26A69A', mint: '#4ADE80', gold: '#C5961A', sky: '#3B82F6', coral: '#EF5350',
+          ink: { 100: '#E2E8F3', 300: '#9FB0CE', 500: '#6B7A99' }
+        },
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+      }
+    }
+  };
+</script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  a:focus-visible, button:focus-visible, select:focus-visible { outline: 2px solid #4ADE80; outline-offset: 3px; border-radius: 0.5rem; }
+  ::selection { background: #26A69A; color: #0A1428; }
+</style>
+</head>
+
+<body class="bg-navy-base text-ink-100 font-sans antialiased">
+
+  <!-- ============ HEADER ============ -->
+  <header class="border-b border-navy-border/60 bg-navy-deep/40">
+    <div class="max-w-6xl mx-auto px-6 py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-mint/15 text-mint flex items-center justify-center shrink-0">
+          <i data-lucide="shield-check" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">Ernesto Investing AI</h1>
+          <p class="text-sm text-ink-300">Clasificador SVC — Datos reales vía API</p>
+        </div>
+      </div>
+      <nav class="flex flex-wrap gap-2">
+        <a href="index.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-navy-border text-ink-300 text-sm hover:border-teal/60 hover:text-teal transition-colors">
+          <i data-lucide="home" class="w-4 h-4"></i> Portal
+        </a>
+        <a href="modulo_mercado.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-navy-border text-ink-300 text-sm hover:border-teal/60 hover:text-teal transition-colors">
+          <i data-lucide="candlestick-chart" class="w-4 h-4"></i> Dashboard de Mercado
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ============ CONTROLES ============ -->
+  <section class="border-b border-navy-border/60 bg-navy-card/30">
+    <div class="max-w-6xl mx-auto px-6 py-5 flex flex-wrap items-end justify-between gap-4">
+      <div class="flex flex-col gap-1.5">
+        <label for="selTicker" class="text-xs font-semibold uppercase tracking-wide text-ink-300">Ticker</label>
+        <select id="selTicker" onchange="cargarSVC()"
+          class="px-4 py-2.5 rounded-xl bg-navy-deep border border-navy-border text-ink-100 text-sm focus:border-mint outline-none">
+          <option value="FSM">FSM</option>
+          <option value="VOLCABC1.LM">VOLCABC1.LM</option>
+          <option value="ABX.TO">ABX.TO</option>
+          <option value="BVN" selected>BVN</option>
+          <option value="BHP">BHP</option>
+        </select>
+      </div>
+
+      <!-- Hiperparámetros de Modelo -->
+      <div class="flex flex-col gap-1.5">
+        <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Hiperparámetros Óptimos</span>
+        <div id="hparams-container" class="flex flex-wrap gap-2">
+          <span class="px-3 py-1.5 rounded-lg border border-navy-border bg-navy-deep text-[11px] text-ink-500">Cargando hiperparámetros...</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CONTENIDO ============ -->
+  <main class="max-w-6xl mx-auto px-6 py-8">
+    <div id="aviso" class="mb-6"></div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+      <!-- Señal actual -->
+      <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6 flex flex-col">
+        <div class="flex items-center gap-2 mb-4">
+          <i data-lucide="gauge" class="w-4 h-4 text-mint"></i>
+          <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Señal Actual del SVC</span>
+        </div>
+        <div id="semaforo" class="flex flex-col items-center w-full py-2"></div>
+      </div>
+
+      <!-- Métricas -->
+      <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6">
+        <div class="flex items-center gap-2 mb-4">
+          <i data-lucide="bar-chart-3" class="w-4 h-4 text-mint"></i>
+          <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Métricas de Desempeño (Test Set)</span>
+        </div>
+        <div id="metricas" class="grid grid-cols-2 gap-3"></div>
+      </div>
+    </div>
+
+    <!-- Matriz de confusión HTML Nativa (Heatmap) -->
+    <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6">
+      <div class="flex items-center gap-2 mb-4">
+        <i data-lucide="grid-3x3" class="w-4 h-4 text-mint"></i>
+        <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Matriz de Confusión — Predicción vs. Real</span>
+      </div>
+      <div id="matriz-container" class="py-4"></div>
+    </div>
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="border-t border-navy-border/60 bg-navy-deep/40 mt-8">
+    <div class="max-w-6xl mx-auto px-6 py-8 text-sm text-ink-500 text-center">
+      Ernesto Investing AI — iDeSo · UNMSM · Prof. E. D. Cancho-Rodríguez, MBA (GWU)
+    </div>
+  </footer>
+
+<script>
+lucide.createIcons();
+
+function getApiUrl(){ return sessionStorage.getItem('API_URL'); }
+
+function mostrarAviso(tipo, html){
+  const aviso = document.getElementById('aviso');
+  const estilos = {
+    info:  'bg-navy-card/60 text-ink-300 border-navy-border',
+    error: 'bg-coral/10 text-coral border-coral/30'
+  };
+  const icono = tipo === 'error' ? 'x-circle' : 'loader';
+  aviso.innerHTML = '<div class="inline-flex items-start gap-2 px-4 py-3 rounded-xl border text-sm ' + estilos[tipo] + '">'
+    + '<i data-lucide="' + icono + '" class="w-4 h-4 mt-0.5 shrink-0 ' + (tipo==='info' ? 'animate-spin' : '') + '"></i>'
+    + '<span>' + html + '</span></div>';
+  lucide.createIcons();
+}
+
+async function cargarSVC(){
+  const apiUrl = getApiUrl();
+  const ticker = document.getElementById('selTicker').value;
+  if(!apiUrl){
+    mostrarAviso('error', 'No hay URL de API. Vuelve al <a href="index.html" class="underline">portal</a> y verifica la conexión.');
+    return;
+  }
+  mostrarAviso('info', 'Cargando SVC de ' + ticker + '...');
+  try{
+    const r = await fetch(apiUrl + '/api/svc/' + ticker, { headers: { 'ngrok-skip-browser-warning': 'true' } });
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    renderizar(data);
+    document.getElementById('aviso').innerHTML = '';
+  }catch(e){
+    mostrarAviso('error', 'Error: ' + e.message);
+  }
+}
+
+function renderizar(data){
+  const p = data.prediccion || {};
+  const m = data.metricas || {};
+  const esBuy = p.senal === 'BUY';
+  const conf = p.confianza || 0;
+
+  // 1. Semáforo y Probabilidades
+  document.getElementById('semaforo').innerHTML = `
+    <div class="flex items-center justify-center gap-6 mb-4">
+      <div class="w-14 h-14 rounded-full flex items-center justify-center font-bold text-white transition-all ${esBuy ? 'bg-mint shadow-[0_0_20px_rgba(74,222,128,0.4)] scale-110' : 'bg-navy-border/50 opacity-40'}">▲</div>
+      <div class="w-14 h-14 rounded-full flex items-center justify-center font-bold text-white transition-all ${!esBuy ? 'bg-coral shadow-[0_0_20px_rgba(239,83,80,0.4)] scale-110' : 'bg-navy-border/50 opacity-40'}">▼</div>
+    </div>
+    <div class="text-center font-extrabold text-2xl mb-1 ${esBuy ? 'text-mint' : 'text-coral'}">${esBuy ? '▲ BUY' : '▼ SELL'}</div>
+    <div class="text-center text-xs text-ink-300 mb-6 px-4">
+      ${esBuy ? 'El clasificador SVC detecta presión compradora (señal alcista).' : 'El clasificador SVC detecta presión vendedora (señal bajista o corrección).'}
+    </div>
+    <div class="grid grid-cols-2 gap-3 w-full mt-auto">
+      <div class="border border-navy-border rounded-xl p-3 text-center bg-navy-deep">
+        <div class="text-[10px] font-bold uppercase tracking-wide text-mint mb-1">Probabilidad BUY</div>
+        <div class="text-xl font-extrabold text-white">${((esBuy ? conf : 1-conf) * 100).toFixed(1)}%</div>
+      </div>
+      <div class="border border-navy-border rounded-xl p-3 text-center bg-navy-deep">
+        <div class="text-[10px] font-bold uppercase tracking-wide text-coral mb-1">Probabilidad SELL</div>
+        <div class="text-xl font-extrabold text-white">${((!esBuy ? conf : 1-conf) * 100).toFixed(1)}%</div>
+      </div>
+    </div>
+  `;
+
+  // 2. Hiperparámetros Óptimos
+  const hparams = document.getElementById('hparams-container');
+  if (m.mejor_kernel) {
+    hparams.innerHTML = `
+      <div class="px-3 py-1.5 rounded-lg border border-navy-border bg-navy-deep text-[11px] font-mono text-ink-300">kernel=<span class="text-sky font-bold">${m.mejor_kernel}</span></div>
+      <div class="px-3 py-1.5 rounded-lg border border-navy-border bg-navy-deep text-[11px] font-mono text-ink-300">C=<span class="text-sky font-bold">${m.mejor_C}</span></div>
+      <div class="px-3 py-1.5 rounded-lg border border-navy-border bg-navy-deep text-[11px] font-mono text-ink-300">gamma=<span class="text-sky font-bold">${m.mejor_gamma}</span></div>
+    `;
+  } else {
+    hparams.innerHTML = '<span class="text-xs text-ink-500">No disponibles</span>';
+  }
+
+  // 3. Métricas con Barras de Progreso
+  document.getElementById('metricas').innerHTML = [
+    { l:'Accuracy',  v: m.accuracy,  c: 'text-sky', bgc: 'bg-sky' },
+    { l:'Precision', v: m.precision, c: 'text-mint', bgc: 'bg-mint' },
+    { l:'Recall',    v: m.recall,    c: 'text-gold', bgc: 'bg-gold' },
+    { l:'F1-Score',  v: m.f1,        c: 'text-teal', bgc: 'bg-teal' }
+  ].map(x => {
+    const pct = ((x.v || 0) * 100).toFixed(1);
+    return `
+    <div class="px-4 py-4 rounded-xl bg-navy-deep border border-navy-border flex flex-col justify-between">
+      <div class="text-[10px] uppercase font-bold tracking-wide text-ink-300 mb-2">${x.l}</div>
+      <div class="text-2xl font-extrabold ${x.c}">${pct}%</div>
+      <div class="h-1.5 w-full bg-navy-base rounded-full mt-3 overflow-hidden">
+        <div class="h-full ${x.bgc}" style="width: ${pct}%"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // 4. Matriz de Confusión en Grid Heatmap
+  const cm = m.matriz_confusion || [[0,0],[0,0]];
+  const total = cm[0][0] + cm[0][1] + cm[1][0] + cm[1][1];
+  let maxVal = Math.max(cm[0][0], cm[0][1], cm[1][0], cm[1][1]);
+
+  function getCellHtml(val, isDiag, realLbl) {
+    const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
+    const intensity = maxVal > 0 ? val / maxVal : 0;
+    const baseColor = isDiag ? '38, 166, 154' : '239, 83, 80'; // mint (TP/TN) vs coral (FP/FN)
+    const alpha = 0.05 + (intensity * 0.6);
+    const bg = `rgba(${baseColor}, ${alpha})`;
+    const border = isDiag ? 'border-teal/30' : 'border-coral/20';
+    const textColor = intensity > 0.5 ? 'text-white' : 'text-ink-100';
+
+    return `
+      <div class="flex flex-col items-center justify-center p-4 rounded-xl border ${border} transition-transform hover:scale-[1.02]" style="background: ${bg}; min-height: 90px;">
+        <div class="text-[10px] font-bold text-ink-300 mb-1 uppercase">${realLbl} Real</div>
+        <div class="text-3xl font-extrabold ${textColor}">${val}</div>
+        <div class="text-[10px] font-bold text-ink-300 mt-1 opacity-80">${pct}%</div>
+      </div>
+    `;
+  }
+
+  document.getElementById('matriz-container').innerHTML = `
+    <div class="flex max-w-2xl mx-auto overflow-x-auto pb-2">
+      <div class="flex flex-col justify-center items-center mr-2">
+        <div class="text-[10px] font-bold text-ink-300 uppercase tracking-widest" style="writing-mode: vertical-rl; transform: rotate(180deg);">
+          Clase Real
+        </div>
+      </div>
+      <div class="flex flex-col justify-center gap-3 mr-3 pt-7 text-right">
+        <div class="h-[90px] flex items-center justify-end text-[10px] font-bold text-ink-300 uppercase">SELL</div>
+        <div class="h-[90px] flex items-center justify-end text-[10px] font-bold text-ink-300 uppercase">BUY</div>
+      </div>
+      <div class="flex-1 min-w-[280px]">
+        <div class="grid grid-cols-2 gap-3 mb-2 text-center">
+          <div class="text-[10px] font-bold text-ink-300 uppercase">Predicción SELL</div>
+          <div class="text-[10px] font-bold text-ink-300 uppercase">Predicción BUY</div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          ${getCellHtml(cm[0][0], true, 'SELL')}
+          ${getCellHtml(cm[0][1], false, 'SELL')}
+          ${getCellHtml(cm[1][0], false, 'BUY')}
+          ${getCellHtml(cm[1][1], true, 'BUY')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+window.addEventListener('DOMContentLoaded', cargarSVC);
+</script>
+</body>
+</html>
