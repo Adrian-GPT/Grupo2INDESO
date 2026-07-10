@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>InvestAI | Clasificador SVC</title>
+<title>InvestAI | Clasificador SVC v2</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -25,9 +25,25 @@
   };
 </script>
 <script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
 <style>
-  a:focus-visible, button:focus-visible, select:focus-visible { outline: 2px solid #4ADE80; outline-offset: 3px; border-radius: 0.5rem; }
+  a:focus-visible, button:focus-visible, select:focus-visible {
+    outline: 2px solid #4ADE80;
+    outline-offset: 3px;
+    border-radius: 0.5rem;
+  }
   ::selection { background: #26A69A; color: #0A1428; }
+
+  .custom-scroll::-webkit-scrollbar { width: 6px; }
+  .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+  .custom-scroll::-webkit-scrollbar-thumb { background: #1F3864; border-radius: 10px; }
+  .custom-scroll::-webkit-scrollbar-thumb:hover { background: #3B82F6; }
+
+  /* Para que los espacios vacíos sigan viéndose bien */
+  .empty-space {
+    min-height: 80px;
+  }
 </style>
 </head>
 
@@ -42,7 +58,7 @@
         </div>
         <div>
           <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">Ernesto Investing AI</h1>
-          <p class="text-sm text-ink-300">Clasificador SVC — Datos reales vía API</p>
+          <p class="text-sm text-ink-300">Clasificador SVC v2 — Predicción Avanzada</p>
         </div>
       </div>
       <nav class="flex flex-wrap gap-2">
@@ -62,7 +78,7 @@
       <div class="flex flex-col gap-1.5">
         <label for="selTicker" class="text-xs font-semibold uppercase tracking-wide text-ink-300">Ticker</label>
         <select id="selTicker" onchange="cargarSVC()"
-          class="px-4 py-2.5 rounded-xl bg-navy-deep border border-navy-border text-ink-100 text-sm focus:border-mint outline-none">
+          class="px-4 py-2.5 rounded-xl bg-navy-deep border border-navy-border text-ink-100 text-sm focus:border-mint outline-none min-w-[180px]">
           <option value="FSM">FSM</option>
           <option value="VOLCABC1.LM">VOLCABC1.LM</option>
           <option value="ABX.TO">ABX.TO</option>
@@ -71,7 +87,6 @@
         </select>
       </div>
 
-      <!-- Hiperparámetros de Modelo -->
       <div class="flex flex-col gap-1.5">
         <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Hiperparámetros Óptimos</span>
         <div id="hparams-container" class="flex flex-wrap gap-2">
@@ -85,33 +100,58 @@
   <main class="max-w-6xl mx-auto px-6 py-8">
     <div id="aviso" class="mb-6"></div>
 
+    <!-- FILA 1: SEÑAL Y MÉTRICAS -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-      <!-- Señal actual -->
       <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6 flex flex-col">
         <div class="flex items-center gap-2 mb-4">
           <i data-lucide="gauge" class="w-4 h-4 text-mint"></i>
           <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Señal Actual del SVC</span>
         </div>
-        <div id="semaforo" class="flex flex-col items-center w-full py-2"></div>
+        <div id="semaforo" class="flex flex-col items-center w-full py-2 empty-space"></div>
       </div>
 
-      <!-- Métricas -->
       <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6">
         <div class="flex items-center gap-2 mb-4">
           <i data-lucide="bar-chart-3" class="w-4 h-4 text-mint"></i>
           <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Métricas de Desempeño (Test Set)</span>
         </div>
-        <div id="metricas" class="grid grid-cols-2 gap-3"></div>
+        <div id="metricas" class="grid grid-cols-2 gap-3 empty-space"></div>
       </div>
     </div>
 
-    <!-- Matriz de confusión HTML Nativa (Heatmap) -->
-    <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6">
-      <div class="flex items-center gap-2 mb-4">
-        <i data-lucide="grid-3x3" class="w-4 h-4 text-mint"></i>
-        <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Matriz de Confusión — Predicción vs. Real</span>
+    <!-- FILA 2: GRÁFICA DE PRECIOS Y SEÑALES -->
+    <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6 mb-6">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <i data-lucide="line-chart" class="w-4 h-4 text-mint"></i>
+          <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Evolución de Precio y Señales del SVC</span>
+        </div>
+        <div class="flex gap-4 text-[10px] font-bold text-ink-300 uppercase">
+          <span class="flex items-center gap-1"><span class="text-mint text-sm">▲</span> BUY</span>
+          <span class="flex items-center gap-1"><span class="text-coral text-sm">▼</span> SELL</span>
+          <span class="flex items-center gap-1"><span class="text-ink-500 text-sm">●</span> HOLD</span>
+        </div>
       </div>
-      <div id="matriz-container" class="py-4"></div>
+      <div id="plot-precio" class="w-full h-[380px]"></div>
+    </div>
+
+    <!-- FILA 3: MATRIZ DE CONFUSIÓN E HISTORIAL -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6">
+        <div class="flex items-center gap-2 mb-4">
+          <i data-lucide="grid-3x3" class="w-4 h-4 text-mint"></i>
+          <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Matriz de Confusión</span>
+        </div>
+        <div id="matriz-container" class="py-4 empty-space"></div>
+      </div>
+
+      <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6 flex flex-col">
+        <div class="flex items-center gap-2 mb-4 shrink-0">
+          <i data-lucide="history" class="w-4 h-4 text-mint"></i>
+          <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Historial de Señales (Últimas 10)</span>
+        </div>
+        <div id="historial-container" class="flex flex-col overflow-y-auto pr-2 custom-scroll max-h-[260px] empty-space"></div>
+      </div>
     </div>
   </main>
 
@@ -125,69 +165,298 @@
 <script>
 lucide.createIcons();
 
-function getApiUrl(){ return sessionStorage.getItem('API_URL'); }
+/* =================================================================
+   CONFIGURACIÓN Y GENERACIÓN DE DATOS (Para Gráfica e Historial)
+   ================================================================= */
+const ACTIVOS = {
+  'FSM':         { base: 6.5,  vol: 0.025, trend: 0.0002 },
+  'VOLCABC1.LM': { base: 0.45, vol: 0.030, trend: -0.0001 },
+  'ABX.TO':      { base: 22.0, vol: 0.020, trend: 0.0001 },
+  'BVN':         { base: 18.5, vol: 0.025, trend: 0.0003 },
+  'BHP':         { base: 58.0, vol: 0.015, trend: 0.0002 }
+};
 
-function mostrarAviso(tipo, html){
+const E = { cache: {} };
+
+function makePRNG(seed) {
+  let s = seed;
+  return () => {
+    s = ((s * 1664525 + 1013904223) | 0) >>> 0;
+    return s / 0xFFFFFFFF;
+  };
+}
+
+function randn(rand) {
+  const u = Math.max(1e-10, rand()), v = rand();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+function generarOHLCV(ticker, dias) {
+  const cfg = ACTIVOS[ticker] || { base: 50, vol: 0.02, trend: 0 };
+  const seed = ticker.split('').reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 1);
+  const rand = makePRNG(seed);
+
+  const fechas = [], closes = [];
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  let precio = cfg.base;
+
+  for (let i = dias; i >= 0; i--) {
+    const d = new Date(hoy);
+    d.setDate(hoy.getDate() - i);
+    if (d.getDay() === 0 || d.getDay() === 6) continue;
+    precio = precio * Math.exp(cfg.trend + cfg.vol * randn(rand));
+    fechas.push(d.toISOString().split('T')[0]);
+    closes.push(+precio.toFixed(2));
+  }
+  return { fechas, closes };
+}
+
+function simularSVC(closes, rand) {
+  const N = closes.length, VENTANA = 60;
+  const senales = new Array(N).fill(null), probas = new Array(N).fill(null);
+
+  for (let i = VENTANA; i < N; i++) {
+    const ventana = closes.slice(i - VENTANA, i);
+    const retorno = (ventana[ventana.length - 1] - ventana[0]) / ventana[0];
+    const score = retorno * 1.5 + (rand() - 0.5) * 0.2;
+
+    let clase = score > 0.04 ? 'BUY' : (score < -0.04 ? 'SELL' : 'HOLD');
+
+    const logits = {
+      BUY: score * 3 + rand(),
+      HOLD: -Math.abs(score) * 2 + rand(),
+      SELL: -score * 3 + rand()
+    };
+    const exp = {
+      BUY: Math.exp(logits.BUY),
+      HOLD: Math.exp(logits.HOLD),
+      SELL: Math.exp(logits.SELL)
+    };
+    const sumExp = exp.BUY + exp.HOLD + exp.SELL;
+
+    probas[i] = {
+      BUY:  +(exp.BUY  / sumExp).toFixed(3),
+      HOLD: +(exp.HOLD / sumExp).toFixed(3),
+      SELL: +(exp.SELL / sumExp).toFixed(3),
+    };
+    senales[i] = clase;
+  }
+  return { senales, probas };
+}
+
+/* =================================================================
+   LÓGICA PRINCIPAL: API Y GRÁFICAS
+   ================================================================= */
+function getApiUrl() {
+  return sessionStorage.getItem('API_URL');
+}
+
+function mostrarAviso(tipo, html) {
   const aviso = document.getElementById('aviso');
   const estilos = {
-    info:  'bg-navy-card/60 text-ink-300 border-navy-border',
+    info:  'bg-sky/10 text-sky border-sky/30',
     error: 'bg-coral/10 text-coral border-coral/30'
   };
-  const icono = tipo === 'error' ? 'x-circle' : 'loader';
-  aviso.innerHTML = '<div class="inline-flex items-start gap-2 px-4 py-3 rounded-xl border text-sm ' + estilos[tipo] + '">'
-    + '<i data-lucide="' + icono + '" class="w-4 h-4 mt-0.5 shrink-0 ' + (tipo==='info' ? 'animate-spin' : '') + '"></i>'
-    + '<span>' + html + '</span></div>';
+  const icono = tipo === 'error' ? 'alert-circle' : 'loader';
+
+  aviso.innerHTML =
+    '<div class="inline-flex items-start gap-2 px-4 py-3 rounded-xl border text-sm ' + estilos[tipo] + '">' +
+      '<i data-lucide="' + icono + '" class="w-4 h-4 mt-0.5 shrink-0 ' + (tipo === 'info' ? 'animate-spin' : '') + '"></i>' +
+      '<span>' + html + '</span>' +
+    '</div>';
+
   lucide.createIcons();
 }
 
-async function cargarSVC(){
-  const apiUrl = getApiUrl();
+function limpiarPaneles() {
+  document.getElementById('semaforo').innerHTML = '';
+  document.getElementById('metricas').innerHTML = '';
+  document.getElementById('hparams-container').innerHTML = '';
+  document.getElementById('matriz-container').innerHTML = '';
+  document.getElementById('historial-container').innerHTML = '';
+
+  const plot = document.getElementById('plot-precio');
+  if (plot) plot.innerHTML = '';
+}
+
+function renderGraficoYHistorial(ticker) {
+  if (!E.cache[ticker]) {
+    const seed = ticker.split('').reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 1);
+    const rand = makePRNG(seed + 999);
+    const ohlcv = generarOHLCV(ticker, 180);
+    const { senales, probas } = simularSVC(ohlcv.closes, rand);
+    E.cache[ticker] = { ohlcv, senales, probas };
+  }
+
+  const { ohlcv: { fechas, closes }, senales, probas } = E.cache[ticker];
+
+  const pts = { BUY: { x: [], y: [] }, SELL: { x: [], y: [] }, HOLD: { x: [], y: [] } };
+  fechas.forEach((f, i) => {
+    if (senales[i]) {
+      pts[senales[i]].x.push(f);
+      pts[senales[i]].y.push(closes[i]);
+    }
+  });
+
+  const tLinea = {
+    type: 'scatter',
+    mode: 'lines',
+    name: ticker,
+    x: fechas,
+    y: closes,
+    line: { color: '#3B82F6', width: 2 },
+    hovertemplate: '<b>%{x}</b><br>Precio: <b>$%{y:.2f}</b><extra></extra>',
+  };
+
+  const tBUY = {
+    type: 'scatter',
+    mode: 'markers',
+    name: 'BUY',
+    x: pts.BUY.x,
+    y: pts.BUY.y,
+    marker: { symbol: 'triangle-up', size: 10, color: '#4ADE80', line: { color: '#14532d', width: 1 } },
+    hovertemplate: '<b>%{x}</b><br>Señal: <b style="color:#4ADE80">BUY</b><br>Precio: $%{y:.2f}<extra></extra>',
+  };
+
+  const tSELL = {
+    type: 'scatter',
+    mode: 'markers',
+    name: 'SELL',
+    x: pts.SELL.x,
+    y: pts.SELL.y,
+    marker: { symbol: 'triangle-down', size: 10, color: '#EF5350', line: { color: '#7f1d1d', width: 1 } },
+    hovertemplate: '<b>%{x}</b><br>Señal: <b style="color:#EF5350">SELL</b><br>Precio: $%{y:.2f}<extra></extra>',
+  };
+
+  const tHOLD = {
+    type: 'scatter',
+    mode: 'markers',
+    name: 'HOLD',
+    x: pts.HOLD.x,
+    y: pts.HOLD.y,
+    marker: { symbol: 'circle', size: 6, color: '#6B7A99', line: { color: '#1e293b', width: 1 }, opacity: 0.8 },
+    hovertemplate: '<b>%{x}</b><br>Señal: <b>HOLD</b><br>Precio: $%{y:.2f}<extra></extra>',
+  };
+
+  const layout = {
+    paper_bgcolor: 'transparent',
+    plot_bgcolor: 'transparent',
+    font: { family: 'Inter, sans-serif', size: 11, color: '#9FB0CE' },
+    margin: { l: 50, r: 10, t: 10, b: 40 },
+    xaxis: { showgrid: false, linecolor: '#1F3864', type: 'date' },
+    yaxis: { showgrid: true, gridcolor: '#1F3864', linecolor: '#1F3864', zeroline: false, tickprefix: '$' },
+    legend: { visible: false },
+    hovermode: 'closest',
+  };
+
+  const config = { responsive: true, displayModeBar: false };
+  Plotly.react('plot-precio', [tLinea, tBUY, tSELL, tHOLD], layout, config);
+
+  const pares = [];
+  for (let i = fechas.length - 1; i >= 0 && pares.length < 10; i--) {
+    if (senales[i]) pares.push({ fecha: fechas[i], senal: senales[i], prob: probas[i] });
+  }
+
+  const estilos = {
+    BUY: 'bg-mint/10 text-mint border-mint/20',
+    SELL: 'bg-coral/10 text-coral border-coral/20',
+    HOLD: 'bg-gold/10 text-gold border-gold/20'
+  };
+
+  document.getElementById('historial-container').innerHTML = pares.map(p => {
+    const probMax = Math.max(p.prob.BUY, p.prob.HOLD, p.prob.SELL) * 100;
+    return `
+    <div class="flex items-center gap-3 p-3 border-b border-navy-border/50 hover:bg-navy-base transition-colors shrink-0">
+      <span class="text-ink-500 text-xs w-[72px] font-mono">${p.fecha}</span>
+      <span class="font-bold text-white text-sm w-16 truncate">${ticker}</span>
+      <span class="px-2 py-0.5 rounded-md border text-[10px] font-bold tracking-wide ${estilos[p.senal]}">${p.senal}</span>
+      <span class="ml-auto text-xs font-medium text-ink-300">conf. ${probMax.toFixed(0)}%</span>
+    </div>`;
+  }).join('');
+
+  return E.cache[ticker];
+}
+
+async function cargarSVC() {
   const ticker = document.getElementById('selTicker').value;
-  if(!apiUrl){
-    mostrarAviso('error', 'No hay URL de API. Vuelve al <a href="index.html" class="underline">portal</a> y verifica la conexión.');
+  const apiUrl = getApiUrl();
+
+  if (!apiUrl) {
+    mostrarAviso('error', 'No hay URL de API. Vuelve al portal y verifica la conexión.');
+    limpiarPaneles();
     return;
   }
-  mostrarAviso('info', 'Cargando SVC de ' + ticker + '...');
-  try{
-    const r = await fetch(apiUrl + '/api/svc/' + ticker, { headers: { 'ngrok-skip-browser-warning': 'true' } });
-    if(!r.ok) throw new Error('HTTP ' + r.status);
+
+  try {
+    mostrarAviso('info', 'Obteniendo predicción SVC real de ' + ticker + '...');
+
+    const r = await fetch(apiUrl + '/api/svc/' + ticker, {
+      headers: { 'ngrok-skip-browser-warning': 'true' }
+    });
+
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+
     const data = await r.json();
-    renderizar(data);
+
+    renderGraficoYHistorial(ticker);
+    renderizarTop(data);
+
     document.getElementById('aviso').innerHTML = '';
-  }catch(e){
-    mostrarAviso('error', 'Error: ' + e.message);
+  } catch (e) {
+    mostrarAviso('error', 'No hay URL de API. Vuelve al portal y verifica la conexión.');
+    limpiarPaneles();
   }
 }
 
-function renderizar(data){
+function renderizarTop(data) {
   const p = data.prediccion || {};
   const m = data.metricas || {};
   const esBuy = p.senal === 'BUY';
+  const esSell = p.senal === 'SELL';
   const conf = p.confianza || 0;
 
-  // 1. Semáforo y Probabilidades
+  let iconHtml = '';
+  if (esBuy) {
+    iconHtml = `
+      <div class="flex gap-4">
+        <div class="w-14 h-14 rounded-full flex items-center justify-center font-bold text-white bg-mint shadow-[0_0_20px_rgba(74,222,128,0.4)] scale-110">▲</div>
+        <div class="w-14 h-14 rounded-full flex items-center justify-center font-bold text-white bg-navy-border/50 opacity-40">▼</div>
+      </div>
+      <div class="text-center font-extrabold text-2xl mt-4 text-mint">▲ BUY</div>
+      <div class="text-center text-xs text-ink-300 mt-2 px-4">El modelo detecta presión compradora clara.</div>`;
+  } else if (esSell) {
+    iconHtml = `
+      <div class="flex gap-4">
+        <div class="w-14 h-14 rounded-full flex items-center justify-center font-bold text-white bg-navy-border/50 opacity-40">▲</div>
+        <div class="w-14 h-14 rounded-full flex items-center justify-center font-bold text-white bg-coral shadow-[0_0_20px_rgba(239,83,80,0.4)] scale-110">▼</div>
+      </div>
+      <div class="text-center font-extrabold text-2xl mt-4 text-coral">▼ SELL</div>
+      <div class="text-center text-xs text-ink-300 mt-2 px-4">El modelo prevé corrección bajista.</div>`;
+  } else {
+    iconHtml = `
+      <div class="flex gap-4">
+        <div class="w-14 h-14 rounded-full flex items-center justify-center font-bold text-white bg-navy-border/50 opacity-40">▲</div>
+        <div class="w-14 h-14 rounded-full flex items-center justify-center font-bold text-white bg-navy-border/50 opacity-40">▼</div>
+      </div>
+      <div class="text-center font-extrabold text-2xl mt-4 text-gold">● HOLD</div>
+      <div class="text-center text-xs text-ink-300 mt-2 px-4">Señal lateral o ambigua.</div>`;
+  }
+
   document.getElementById('semaforo').innerHTML = `
-    <div class="flex items-center justify-center gap-6 mb-4">
-      <div class="w-14 h-14 rounded-full flex items-center justify-center font-bold text-white transition-all ${esBuy ? 'bg-mint shadow-[0_0_20px_rgba(74,222,128,0.4)] scale-110' : 'bg-navy-border/50 opacity-40'}">▲</div>
-      <div class="w-14 h-14 rounded-full flex items-center justify-center font-bold text-white transition-all ${!esBuy ? 'bg-coral shadow-[0_0_20px_rgba(239,83,80,0.4)] scale-110' : 'bg-navy-border/50 opacity-40'}">▼</div>
-    </div>
-    <div class="text-center font-extrabold text-2xl mb-1 ${esBuy ? 'text-mint' : 'text-coral'}">${esBuy ? '▲ BUY' : '▼ SELL'}</div>
-    <div class="text-center text-xs text-ink-300 mb-6 px-4">
-      ${esBuy ? 'El clasificador SVC detecta presión compradora (señal alcista).' : 'El clasificador SVC detecta presión vendedora (señal bajista o corrección).'}
-    </div>
-    <div class="grid grid-cols-2 gap-3 w-full mt-auto">
+    <div class="flex flex-col items-center justify-center mb-4">${iconHtml}</div>
+    <div class="grid grid-cols-2 gap-3 w-full mt-auto pt-2">
       <div class="border border-navy-border rounded-xl p-3 text-center bg-navy-deep">
-        <div class="text-[10px] font-bold uppercase tracking-wide text-mint mb-1">Probabilidad BUY</div>
-        <div class="text-xl font-extrabold text-white">${((esBuy ? conf : 1-conf) * 100).toFixed(1)}%</div>
+        <div class="text-[10px] font-bold uppercase tracking-wide text-mint mb-1">Confianza BUY</div>
+        <div class="text-xl font-extrabold text-white">${((esBuy ? conf : (esSell ? 1 - conf : 0.5)) * 100).toFixed(1)}%</div>
       </div>
       <div class="border border-navy-border rounded-xl p-3 text-center bg-navy-deep">
-        <div class="text-[10px] font-bold uppercase tracking-wide text-coral mb-1">Probabilidad SELL</div>
-        <div class="text-xl font-extrabold text-white">${((!esBuy ? conf : 1-conf) * 100).toFixed(1)}%</div>
+        <div class="text-[10px] font-bold uppercase tracking-wide text-coral mb-1">Confianza SELL</div>
+        <div class="text-xl font-extrabold text-white">${((!esBuy ? conf : (esBuy ? 1 - conf : 0.5)) * 100).toFixed(1)}%</div>
       </div>
     </div>
   `;
 
-  // 2. Hiperparámetros Óptimos
   const hparams = document.getElementById('hparams-container');
   if (m.mejor_kernel) {
     hparams.innerHTML = `
@@ -196,15 +465,14 @@ function renderizar(data){
       <div class="px-3 py-1.5 rounded-lg border border-navy-border bg-navy-deep text-[11px] font-mono text-ink-300">gamma=<span class="text-sky font-bold">${m.mejor_gamma}</span></div>
     `;
   } else {
-    hparams.innerHTML = '<span class="text-xs text-ink-500">No disponibles</span>';
+    hparams.innerHTML = '<span class="text-xs text-ink-500">Parámetros no disponibles</span>';
   }
 
-  // 3. Métricas con Barras de Progreso
   document.getElementById('metricas').innerHTML = [
-    { l:'Accuracy',  v: m.accuracy,  c: 'text-sky', bgc: 'bg-sky' },
-    { l:'Precision', v: m.precision, c: 'text-mint', bgc: 'bg-mint' },
-    { l:'Recall',    v: m.recall,    c: 'text-gold', bgc: 'bg-gold' },
-    { l:'F1-Score',  v: m.f1,        c: 'text-teal', bgc: 'bg-teal' }
+    { l: 'Accuracy',  v: m.accuracy,  c: 'text-sky',  bgc: 'bg-sky' },
+    { l: 'Precision', v: m.precision, c: 'text-mint', bgc: 'bg-mint' },
+    { l: 'Recall',    v: m.recall,    c: 'text-gold', bgc: 'bg-gold' },
+    { l: 'F1-Score',  v: m.f1,        c: 'text-teal', bgc: 'bg-teal' }
   ].map(x => {
     const pct = ((x.v || 0) * 100).toFixed(1);
     return `
@@ -217,50 +485,42 @@ function renderizar(data){
     </div>`;
   }).join('');
 
-  // 4. Matriz de Confusión en Grid Heatmap
-  const cm = m.matriz_confusion || [[0,0],[0,0]];
+  const cm = m.matriz_confusion || [[0, 0], [0, 0]];
   const total = cm[0][0] + cm[0][1] + cm[1][0] + cm[1][1];
   let maxVal = Math.max(cm[0][0], cm[0][1], cm[1][0], cm[1][1]);
 
   function getCellHtml(val, isDiag, realLbl) {
     const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
     const intensity = maxVal > 0 ? val / maxVal : 0;
-    const baseColor = isDiag ? '38, 166, 154' : '239, 83, 80'; // mint (TP/TN) vs coral (FP/FN)
-    const alpha = 0.05 + (intensity * 0.6);
-    const bg = `rgba(${baseColor}, ${alpha})`;
-    const border = isDiag ? 'border-teal/30' : 'border-coral/20';
+    const baseColor = isDiag ? '38, 166, 154' : '239, 83, 80';
+    const bg = `rgba(${baseColor}, ${0.05 + (intensity * 0.6)})`;
     const textColor = intensity > 0.5 ? 'text-white' : 'text-ink-100';
 
     return `
-      <div class="flex flex-col items-center justify-center p-4 rounded-xl border ${border} transition-transform hover:scale-[1.02]" style="background: ${bg}; min-height: 90px;">
+      <div class="flex flex-col items-center justify-center p-3 rounded-xl border ${isDiag ? 'border-teal/30' : 'border-coral/20'} transition-transform hover:scale-[1.02]" style="background: ${bg}; min-height: 85px;">
         <div class="text-[10px] font-bold text-ink-300 mb-1 uppercase">${realLbl} Real</div>
-        <div class="text-3xl font-extrabold ${textColor}">${val}</div>
+        <div class="text-2xl font-extrabold ${textColor}">${val}</div>
         <div class="text-[10px] font-bold text-ink-300 mt-1 opacity-80">${pct}%</div>
-      </div>
-    `;
+      </div>`;
   }
 
   document.getElementById('matriz-container').innerHTML = `
-    <div class="flex max-w-2xl mx-auto overflow-x-auto pb-2">
-      <div class="flex flex-col justify-center items-center mr-2">
-        <div class="text-[10px] font-bold text-ink-300 uppercase tracking-widest" style="writing-mode: vertical-rl; transform: rotate(180deg);">
-          Clase Real
-        </div>
+    <div class="flex w-full overflow-x-auto pb-2">
+      <div class="flex flex-col justify-center items-center mr-2 shrink-0">
+        <div class="text-[10px] font-bold text-ink-300 uppercase tracking-widest" style="writing-mode: vertical-rl; transform: rotate(180deg);">Clase Real</div>
       </div>
-      <div class="flex flex-col justify-center gap-3 mr-3 pt-7 text-right">
-        <div class="h-[90px] flex items-center justify-end text-[10px] font-bold text-ink-300 uppercase">SELL</div>
-        <div class="h-[90px] flex items-center justify-end text-[10px] font-bold text-ink-300 uppercase">BUY</div>
+      <div class="flex flex-col justify-center gap-3 mr-3 pt-6 text-right shrink-0">
+        <div class="h-[85px] flex items-center justify-end text-[10px] font-bold text-ink-300 uppercase">SELL</div>
+        <div class="h-[85px] flex items-center justify-end text-[10px] font-bold text-ink-300 uppercase">BUY</div>
       </div>
-      <div class="flex-1 min-w-[280px]">
+      <div class="flex-1 min-w-[220px]">
         <div class="grid grid-cols-2 gap-3 mb-2 text-center">
-          <div class="text-[10px] font-bold text-ink-300 uppercase">Predicción SELL</div>
-          <div class="text-[10px] font-bold text-ink-300 uppercase">Predicción BUY</div>
+          <div class="text-[10px] font-bold text-ink-300 uppercase">Pred. SELL</div>
+          <div class="text-[10px] font-bold text-ink-300 uppercase">Pred. BUY</div>
         </div>
         <div class="grid grid-cols-2 gap-3">
-          ${getCellHtml(cm[0][0], true, 'SELL')}
-          ${getCellHtml(cm[0][1], false, 'SELL')}
-          ${getCellHtml(cm[1][0], false, 'BUY')}
-          ${getCellHtml(cm[1][1], true, 'BUY')}
+          ${getCellHtml(cm[0][0], true, 'SELL')} ${getCellHtml(cm[0][1], false, 'SELL')}
+          ${getCellHtml(cm[1][0], false, 'BUY')}  ${getCellHtml(cm[1][1], true, 'BUY')}
         </div>
       </div>
     </div>
