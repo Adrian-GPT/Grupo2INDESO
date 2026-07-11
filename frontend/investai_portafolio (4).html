@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InvestAI | Gestión de Portafolio</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          navy: { deep: '#0A1428', base: '#0D1B33', card: '#122548', border: '#1F3864' },
+          teal: '#26A69A', mint: '#4ADE80', gold: '#C5961A', sky: '#3B82F6', coral: '#EF5350',
+          ink: { 100: '#E2E8F3', 300: '#9FB0CE', 500: '#6B7A99' }
+        },
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+      }
+    }
+  };
+</script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+<style>
+  a:focus-visible, button:focus-visible, select:focus-visible {
+    outline: 2px solid #4ADE80;
+    outline-offset: 3px;
+    border-radius: 0.5rem;
+  }
+  ::selection { background: #26A69A; color: #0A1428; }
+
+  .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+  .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+  .custom-scroll::-webkit-scrollbar-thumb { background: #1F3864; border-radius: 10px; }
+  .custom-scroll::-webkit-scrollbar-thumb:hover { background: #3B82F6; }
+
+  .empty-space { min-height: 60px; }
+
+  .senal-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; letter-spacing: .3px;
+  }
+  .senal-badge.buy  { background: rgba(74,222,128,.12); color: #4ADE80; }
+  .senal-badge.sell { background: rgba(239,83,80,.12);  color: #EF5350; }
+  .senal-badge.hold { background: rgba(197,150,26,.15);  color: #E8B836; }
+
+  .disabled-panel { opacity: .35; pointer-events: none; transition: opacity .2s; }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(10,20,40,.7); backdrop-filter: blur(4px);
+    z-index: 900; display: none; align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal-overlay.visible { display: flex; }
+  @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .modal-anim { animation: slideUp .25s cubic-bezier(.34,1.56,.64,1); }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 28px; right: 24px; background: #26A69A; color: #06120e;
+    padding: 12px 20px; border-radius: 12px; font-size: 13px; font-weight: 700;
+    display: flex; align-items: center; gap: 8px; box-shadow: 0 6px 24px rgba(38,166,154,.35);
+    z-index: 9999; transform: translateY(80px); opacity: 0;
+    transition: transform .35s cubic-bezier(.34,1.56,.64,1), opacity .3s;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+</style>
+</head>
+
+<body class="bg-navy-base text-ink-100 font-sans antialiased">
+
+  <!-- ============ HEADER (idéntico patrón a modulo_svc.html) ============ -->
+  <header class="border-b border-navy-border/60 bg-navy-deep/40">
+    <div class="max-w-6xl mx-auto px-6 py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gold/15 text-gold flex items-center justify-center shrink-0">
+          <i data-lucide="briefcase" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">Ernesto Investing AI</h1>
+          <p class="text-sm text-ink-300">Gestión de Portafolio — Datos Reales MongoDB / FastAPI</p>
+        </div>
+      </div>
+      <nav class="flex flex-wrap gap-2">
+        <a href="home.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-navy-border text-ink-300 text-sm hover:border-teal/60 hover:text-teal transition-colors">
+          <i data-lucide="home" class="w-4 h-4"></i> Portal
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ============ BARRA DE ESTADO DE CONEXIÓN ============ -->
+  <section class="border-b border-navy-border/60 bg-navy-card/30">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-ink-300">
+        <span id="dotEstado" class="w-2 h-2 rounded-full bg-ink-500"></span>
+        <span id="estadoTexto">Conectando con la API...</span>
+      </div>
+      <div class="text-xs text-ink-500 font-mono" id="reloj">--:--:--</div>
+    </div>
+  </section>
+
+  <!-- ============ CONTENIDO ============ -->
+  <main class="max-w-6xl mx-auto px-6 py-8">
+    <div id="aviso" class="mb-6"></div>
+
+    <div id="panelContenido">
+
+      <!-- FILA 1: MÉTRICAS BACKTESTING -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-5 relative overflow-hidden">
+          <div class="absolute top-0 left-0 right-0 h-[3px] bg-mint"></div>
+          <div class="text-[10px] font-bold uppercase tracking-wide text-ink-300 mb-2">Total Return</div>
+          <div id="totalReturn" class="text-2xl font-extrabold text-mint">—</div>
+          <div class="text-[11px] text-ink-500 mt-1">Capital inicial: $100,000 USD</div>
+        </div>
+        <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-5 relative overflow-hidden">
+          <div class="absolute top-0 left-0 right-0 h-[3px] bg-gold"></div>
+          <div class="text-[10px] font-bold uppercase tracking-wide text-ink-300 mb-2">Sharpe Ratio</div>
+          <div id="sharpe" class="text-2xl font-extrabold text-white">—</div>
+          <div class="text-[11px] text-ink-500 mt-1">Rf = 0% · Retornos diarios reales</div>
+        </div>
+        <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-5 relative overflow-hidden">
+          <div class="absolute top-0 left-0 right-0 h-[3px] bg-coral"></div>
+          <div class="text-[10px] font-bold uppercase tracking-wide text-ink-300 mb-2">Max Drawdown</div>
+          <div id="drawdown" class="text-2xl font-extrabold text-coral">—</div>
+          <div class="text-[11px] text-ink-500 mt-1">Peor caída acumulada real</div>
+        </div>
+        <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-5 relative overflow-hidden">
+          <div class="absolute top-0 left-0 right-0 h-[3px] bg-sky"></div>
+          <div class="text-[10px] font-bold uppercase tracking-wide text-ink-300 mb-2">Win Rate</div>
+          <div id="winRate" class="text-2xl font-extrabold text-white">—</div>
+          <div class="text-[11px] text-ink-500 mt-1">Días con retorno positivo</div>
+        </div>
+      </div>
+
+      <!-- FILA 2: DONA + CURVA DE EQUITY -->
+      <div class="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6 mb-6">
+        <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6">
+          <div class="flex items-center gap-2 mb-4">
+            <i data-lucide="pie-chart" class="w-4 h-4 text-mint"></i>
+            <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Distribución del Portafolio</span>
+          </div>
+          <div class="relative w-[190px] h-[190px] mx-auto mb-5">
+            <canvas id="donaChart"></canvas>
+            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+              <div id="donaCentroVal" class="text-lg font-extrabold text-white">—</div>
+              <div class="text-[10px] text-ink-300 font-semibold">Valor total</div>
+            </div>
+          </div>
+          <div id="donaLeyenda" class="flex flex-col gap-2 empty-space"></div>
+        </div>
+
+        <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6">
+          <div class="flex items-center gap-2 mb-4">
+            <i data-lucide="line-chart" class="w-4 h-4 text-mint"></i>
+            <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Curva de Equity — Rebalanceo Mensual vs Buy &amp; Hold</span>
+          </div>
+          <div class="relative h-[240px]">
+            <canvas id="equityChart"></canvas>
+          </div>
+          <div id="equityLeyenda" class="flex flex-wrap gap-4 mt-3"></div>
+        </div>
+      </div>
+
+      <!-- FILA 3: TABLA DE POSICIONES -->
+      <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 mb-6 overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-navy-border/60">
+          <div class="flex items-center gap-2">
+            <i data-lucide="list" class="w-4 h-4 text-mint"></i>
+            <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Posiciones Abiertas</span>
+          </div>
+          <span class="text-[11px] text-ink-500">5 activos · Datos reales — MongoDB Atlas</span>
+        </div>
+        <div class="overflow-x-auto custom-scroll">
+          <table class="w-full text-left text-sm whitespace-nowrap">
+            <thead class="bg-navy-deep/50 text-ink-300 text-[10px] uppercase">
+              <tr>
+                <th class="p-3">Ticker</th>
+                <th class="p-3 text-right">Cantidad</th>
+                <th class="p-3 text-right">P. Compra</th>
+                <th class="p-3 text-right">P. Actual</th>
+                <th class="p-3 text-right">P&amp;L ($)</th>
+                <th class="p-3 text-right">P&amp;L (%)</th>
+                <th class="p-3 text-center">Señal SVC</th>
+              </tr>
+            </thead>
+            <tbody id="tablaPosiciones" class="text-ink-100"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- FILA 4: RESUMEN DE CAPITAL + ASIGNACIÓN -->
+      <div class="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6">
+        <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6 flex flex-col gap-3">
+          <div class="text-xs font-semibold uppercase tracking-wide text-ink-300 mb-1">Resumen de Capital</div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-ink-300">Capital inicial</span>
+            <span id="capInicial" class="font-bold text-white">$100,000.00</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-ink-300">Valor actual</span>
+            <span id="capActual" class="font-bold text-mint">—</span>
+          </div>
+          <hr class="border-navy-border/60">
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-ink-300">P&amp;L total</span>
+            <span id="capPnl" class="font-bold">—</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-ink-300">Comisiones pagadas (est.)</span>
+            <span id="capComisiones" class="font-bold text-coral">—</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-ink-300">Rebalanceos ejecutados</span>
+            <span id="capTrades" class="font-bold text-white">—</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-ink-300">Profit Factor</span>
+            <span id="capProfitFactor" class="font-bold text-mint">—</span>
+          </div>
+          <button id="btnRebalancear" onclick="abrirModal()"
+            class="mt-2 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-br from-sky to-navy-border text-white font-bold text-sm hover:opacity-90 transition-opacity shadow-lg">
+            <i data-lucide="scale" class="w-4 h-4"></i> Rebalancear Portafolio
+          </button>
+        </div>
+
+        <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6">
+          <div class="flex items-center gap-2 mb-4">
+            <i data-lucide="target" class="w-4 h-4 text-mint"></i>
+            <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Asignación Actual vs Objetivo (20% cada activo)</span>
+          </div>
+          <div id="asigBarra" class="flex flex-col gap-3 empty-space"></div>
+        </div>
+      </div>
+
+    </div><!-- /panelContenido -->
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="border-t border-navy-border/60 bg-navy-deep/40 mt-8">
+    <div class="max-w-6xl mx-auto px-6 py-8 text-sm text-ink-500 text-center">
+      Ernesto Investing AI — iDeSo · UNMSM · Prof. E. D. Cancho-Rodríguez, MBA (GWU)
+    </div>
+  </footer>
+
+  <!-- ============ MODAL DE REBALANCEO ============ -->
+  <div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true">
+    <div class="modal-anim w-full max-w-md rounded-2xl overflow-hidden border border-navy-border bg-navy-card shadow-2xl">
+      <div class="h-1 bg-gradient-to-r from-sky to-gold"></div>
+      <div class="p-7">
+        <div class="w-12 h-12 rounded-xl bg-sky/15 text-sky flex items-center justify-center mb-4">
+          <i data-lucide="scale" class="w-6 h-6"></i>
+        </div>
+        <h2 class="text-lg font-extrabold text-white mb-1">Confirmar Rebalanceo</h2>
+        <p class="text-sm text-ink-300 leading-relaxed mb-5">
+          Esta operación ajustará las posiciones de tu portafolio para restaurar los pesos objetivo (20% por activo).
+          Se generarán órdenes de compra y venta según el diferencial real detectado sobre los precios actuales.
+        </p>
+        <div id="modalTabla" class="bg-navy-deep rounded-xl p-4 mb-5 flex flex-col gap-2 text-xs"></div>
+        <div class="flex gap-3">
+          <button onclick="cerrarModal()" class="flex-1 py-2.5 rounded-xl border border-navy-border text-ink-300 text-sm font-semibold hover:border-teal/60 hover:text-teal transition-colors">Cancelar</button>
+          <button onclick="confirmarRebalanceo()" class="flex-[1.5] py-2.5 rounded-xl bg-gradient-to-br from-sky to-navy-border text-white text-sm font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+            <i data-lucide="check" class="w-4 h-4"></i> Confirmar Rebalanceo
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">✓ Rebalanceo ejecutado correctamente</div>
+
+<script>
+lucide.createIcons();
+
+/* ============================================================
+   CONFIGURACIÓN — 5 tickers mineros reales (MongoDB Atlas)
+   ============================================================ */
+const TICKERS = ['FSM', 'VOLCABC1.LM', 'ABX.TO', 'BVN', 'BHP'];
+
+const NOMBRES = {
+  'FSM':         'Fortuna Silver Mines',
+  'VOLCABC1.LM': 'Volcan Cia. Minera',
+  'ABX.TO':      'Barrick Gold Corp.',
+  'BVN':         'Cia. de Minas Buenaventura',
+  'BHP':         'BHP Billiton Limited'
+};
+
+const COLORES_ACTIVO = {
+  'FSM':         '#3B82F6',
+  'VOLCABC1.LM': '#8B5CF6',
+  'ABX.TO':      '#26A69A',
+  'BVN':         '#C5961A',
+  'BHP':         '#EF5350'
+};
+
+const CAPITAL_INICIAL = 100000;
+const REBAL_PASO_DIAS = 21; // aprox. 1 mes bursátil
+
+let ESTADO = null;
+let donaChartRef = null;
+let equityChartRef = null;
+
+/* ============================================================
+   CONEXIÓN A LA API (mismo patrón que modulo_svc.html)
+   ============================================================ */
+function getApiUrl() {
+  return sessionStorage.getItem('API_URL');
+}
+
+function mostrarAviso(tipo, html) {
+  const aviso = document.getElementById('aviso');
+  const estilos = {
+    info:  'bg-sky/10 text-sky border-sky/30',
+    error: 'bg-coral/10 text-coral border-coral/30'
+  };
+  const icono = tipo === 'error' ? 'alert-circle' : 'loader';
+
+  aviso.innerHTML =
+    '<div class="inline-flex items-start gap-2 px-4 py-3 rounded-xl border text-sm ' + estilos[tipo] + '">' +
+      '<i data-lucide="' + icono + '" class="w-4 h-4 mt-0.5 shrink-0 ' + (tipo === 'info' ? 'animate-spin' : '') + '"></i>' +
+      '<span>' + html + '</span>' +
+    '</div>';
+
+  lucide.createIcons();
+}
+
+function limpiarAviso() { document.getElementById('aviso').innerHTML = ''; }
+
+function setEstadoConexion(ok) {
+  document.getElementById('dotEstado').className = 'w-2 h-2 rounded-full ' + (ok ? 'bg-mint' : 'bg-coral');
+  document.getElementById('estadoTexto').textContent = ok ? 'Datos reales conectados' : 'Sin conexión a la API';
+}
+
+function setPanelHabilitado(ok) {
+  document.getElementById('panelContenido').classList.toggle('disabled-panel', !ok);
+}
+
+/* ============================================================
+   RELOJ EN TIEMPO REAL
+   ============================================================ */
+function actualizarReloj() {
+  const ahora = new Date();
+  document.getElementById('reloj').textContent = ahora.toLocaleTimeString('es-PE', { hour12: false });
+}
+actualizarReloj();
+setInterval(actualizarReloj, 1000);
+
+/* ============================================================
+   HELPERS DE FORMATO
+   ============================================================ */
+const fmt = {
+  usd:  v => (v < 0 ? '−$' : '$') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+  pct:  v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%',
+  num:  v => v.toLocaleString('en-US', { maximumFractionDigits: 4 })
+};
+
+/* ============================================================
+   CÁLCULOS FINANCIEROS SOBRE LA CURVA DE EQUITY REAL
+   ============================================================ */
+function retornosDiarios(serie) {
+  const r = [];
+  for (let i = 1; i < serie.length; i++) {
+    if (serie[i - 1] > 0) r.push((serie[i] - serie[i - 1]) / serie[i - 1]);
+  }
+  return r;
+}
+
+function media(arr) { return arr.reduce((a, b) => a + b, 0) / (arr.length || 1); }
+function desviacion(arr, m) { return Math.sqrt(media(arr.map(x => (x - m) ** 2))); }
+
+function calcularMetricasSerie(serie) {
+  const rets = retornosDiarios(serie);
+  if (rets.length < 5) return { sharpe: 0, sortino: 0, maxDD: 0, winRate: 0 };
+
+  const m  = media(rets);
+  const sd = desviacion(rets, m);
+  const negativos = rets.filter(r => r < 0);
+  const downsideDev = negativos.length ? desviacion(negativos, 0) : 0;
+
+  const sharpe  = sd > 0 ? (m / sd) * Math.sqrt(252) : 0;
+  const sortino = downsideDev > 0 ? (m / downsideDev) * Math.sqrt(252) : 0;
+
+  let pico = serie[0], maxDD = 0;
+  for (const v of serie) {
+    if (v > pico) pico = v;
+    const dd = (pico - v) / pico;
+    if (dd > maxDD) maxDD = dd;
+  }
+
+  const winRate = (rets.filter(r => r > 0).length / rets.length) * 100;
+
+  return { sharpe, sortino, maxDD: maxDD * 100, winRate };
+}
+
+/* ============================================================
+   CONSTRUCCIÓN DEL PORTAFOLIO SOBRE PRECIOS REALES
+   ============================================================ */
+function alinearFechas(seriesPorTicker) {
+  let fechasComunes = null;
+  for (const t of TICKERS) {
+    const set = new Set(seriesPorTicker[t].fechas);
+    fechasComunes = fechasComunes === null ? set : new Set([...fechasComunes].filter(f => set.has(f)));
+  }
+  return [...fechasComunes].sort();
+}
+
+function construirPortafolio(seriesPorTicker) {
+  const fechas = alinearFechas(seriesPorTicker);
+  const N = fechas.length;
+
+  const precios = {};
+  TICKERS.forEach(t => {
+    const idxPorFecha = {};
+    seriesPorTicker[t].fechas.forEach((f, i) => { idxPorFecha[f] = seriesPorTicker[t].closes[i]; });
+    precios[t] = fechas.map(f => idxPorFecha[f]);
+  });
+
+  // ---- Buy & Hold: cantidades fijas desde el día 0 ----
+  const qtyBH = {};
+  TICKERS.forEach(t => { qtyBH[t] = (CAPITAL_INICIAL / TICKERS.length) / precios[t][0]; });
+  const valueBH = fechas.map((_, i) => TICKERS.reduce((s, t) => s + qtyBH[t] * precios[t][i], 0));
+
+  // ---- Estrategia rebalanceada a pesos iguales cada ~21 días ----
+  const qtyRE = { ...qtyBH };
+  const valueRE = [];
+  let numRebalances = 0;
+  const historialQty = [{ dia: 0, qty: { ...qtyRE } }];
+
+  for (let i = 0; i < N; i++) {
+    const valorDia = TICKERS.reduce((s, t) => s + qtyRE[t] * precios[t][i], 0);
+    valueRE.push(valorDia);
+
+    if (i > 0 && i % REBAL_PASO_DIAS === 0 && i < N - 1) {
+      const objetivoPorActivo = valorDia / TICKERS.length;
+      TICKERS.forEach(t => { qtyRE[t] = objetivoPorActivo / precios[t][i]; });
+      numRebalances++;
+      historialQty.push({ dia: i, qty: { ...qtyRE } });
+    }
+  }
+
+  return { fechas, precios, valueBH, valueRE, qtyRE, numRebalances, historialQty };
+}
+
+/* ============================================================
+   RENDER: TARJETAS DE MÉTRICAS
+   ============================================================ */
+function renderMetricas(port) {
+  const totalReturnRE = ((port.valueRE[port.valueRE.length - 1] / CAPITAL_INICIAL) - 1) * 100;
+  const m = calcularMetricasSerie(port.valueRE);
+
+  const elTR = document.getElementById('totalReturn');
+  elTR.textContent = fmt.pct(totalReturnRE);
+  elTR.className = 'text-2xl font-extrabold ' + (totalReturnRE >= 0 ? 'text-mint' : 'text-coral');
+
+  document.getElementById('sharpe').textContent = m.sharpe.toFixed(2);
+  document.getElementById('drawdown').textContent = '−' + m.maxDD.toFixed(1) + '%';
+  document.getElementById('winRate').textContent = m.winRate.toFixed(1) + '%';
+
+  return { totalReturnRE, ...m };
+}
+
+/* ============================================================
+   RENDER: TABLA DE POSICIONES
+   ============================================================ */
+function renderizarTabla(port, senales) {
+  const tbody = document.getElementById('tablaPosiciones');
+  tbody.innerHTML = '';
+
+  const ultimoIdx = port.fechas.length - 1;
+  const ultimoRebalance = port.historialQty[port.historialQty.length - 1];
+
+  TICKERS.forEach(t => {
+    const cantidad = port.qtyRE[t];
+    const pActual  = port.precios[t][ultimoIdx];
+    const pCompra  = port.precios[t][ultimoRebalance.dia];
+    const pl    = (pActual - pCompra) * cantidad;
+    const plPct = ((pActual - pCompra) / pCompra) * 100;
+    const positivo = pl >= 0;
+
+    const senalInfo = senales[t] || {};
+    const senal = (senalInfo.senal || 'HOLD').toUpperCase();
+    const senalClass = senal === 'BUY' ? 'buy' : senal === 'SELL' ? 'sell' : 'hold';
+    const senalIcono = senal === 'BUY' ? '▲' : senal === 'SELL' ? '▼' : '▬';
+
+    const tr = document.createElement('tr');
+    tr.className = 'border-b border-navy-border/50 hover:bg-navy-deep/40 transition-colors';
+    tr.innerHTML = `
+      <td class="p-3">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-sm shrink-0" style="background:${COLORES_ACTIVO[t]}"></span>
+          <div>
+            <div class="font-bold text-white text-[13px]">${t}</div>
+            <div class="text-[11px] text-ink-500">${NOMBRES[t]}</div>
+          </div>
+        </div>
+      </td>
+      <td class="p-3 text-right font-semibold">${fmt.num(cantidad)}</td>
+      <td class="p-3 text-right font-semibold">${fmt.usd(pCompra)}</td>
+      <td class="p-3 text-right font-semibold">${fmt.usd(pActual)}</td>
+      <td class="p-3 text-right font-semibold ${positivo ? 'text-mint' : 'text-coral'}">${fmt.usd(pl)}</td>
+      <td class="p-3 text-right font-semibold ${positivo ? 'text-mint' : 'text-coral'}">${fmt.pct(plPct)}</td>
+      <td class="p-3 text-center"><span class="senal-badge ${senalClass}">${senalIcono} ${senal}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+/* ============================================================
+   RENDER: GRÁFICO DE DONA — distribución real del portafolio
+   ============================================================ */
+function renderizarDona(port) {
+  const ultimoIdx = port.fechas.length - 1;
+  const valores = TICKERS.map(t => port.qtyRE[t] * port.precios[t][ultimoIdx]);
+  const total = valores.reduce((a, b) => a + b, 0);
+  const pcts = valores.map(v => (v / total) * 100);
+
+  document.getElementById('donaCentroVal').textContent = '$' + (total / 1000).toFixed(1) + 'K';
+
+  document.getElementById('donaLeyenda').innerHTML = TICKERS.map((t, i) => `
+    <div class="flex items-center gap-2 text-xs">
+      <span class="w-2.5 h-2.5 rounded-sm shrink-0" style="background:${COLORES_ACTIVO[t]}"></span>
+      <span class="font-bold text-white flex-1">${t}</span>
+      <span class="text-ink-300 font-semibold">${pcts[i].toFixed(1)}%</span>
+      <span class="font-bold text-ink-100">${fmt.usd(valores[i])}</span>
+    </div>
+  `).join('');
+
+  if (donaChartRef) donaChartRef.destroy();
+  const ctx = document.getElementById('donaChart').getContext('2d');
+  donaChartRef = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: TICKERS,
+      datasets: [{
+        data: pcts,
+        backgroundColor: TICKERS.map(t => COLORES_ACTIVO[t]),
+        borderColor: TICKERS.map(() => '#122548'),
+        borderWidth: 3,
+        hoverOffset: 8
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      cutout: '68%',
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ` ${c.label}: ${c.raw.toFixed(1)}%` } }
+      }
+    }
+  });
+
+  return { valores, pcts, total };
+}
+
+/* ============================================================
+   RENDER: CURVA DE EQUITY REAL — rebalanceo vs buy & hold
+   ============================================================ */
+function renderizarEquity(port) {
+  const fechasLabel = port.fechas.map(f => {
+    const d = new Date(f);
+    return d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' });
+  });
+  const labelsReducidos = fechasLabel.map((f, i) => (i % Math.ceil(fechasLabel.length / 9) === 0) ? f : '');
+
+  const ctx = document.getElementById('equityChart').getContext('2d');
+  const gradiente = ctx.createLinearGradient(0, 0, 0, 240);
+  gradiente.addColorStop(0, 'rgba(59,130,246,0.25)');
+  gradiente.addColorStop(1, 'rgba(59,130,246,0.0)');
+
+  if (equityChartRef) equityChartRef.destroy();
+  equityChartRef = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labelsReducidos,
+      datasets: [
+        {
+          label: 'Rebalanceo Mensual (Estrategia InvestAI)',
+          data: port.valueRE,
+          borderColor: '#3B82F6',
+          backgroundColor: gradiente,
+          borderWidth: 2.5,
+          fill: true,
+          tension: 0.15,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: '#3B82F6'
+        },
+        {
+          label: 'Buy & Hold',
+          data: port.valueBH,
+          borderColor: '#6B7A99',
+          backgroundColor: 'transparent',
+          borderWidth: 1.8,
+          borderDash: [6, 4],
+          fill: false,
+          tension: 0.15,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          pointHoverBackgroundColor: '#6B7A99'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0A1428',
+          titleColor: '#9FB0CE',
+          bodyColor: '#FFFFFF',
+          padding: 10,
+          callbacks: {
+            title: items => `Fecha: ${fechasLabel[items[0].dataIndex]}`,
+            label: item => ` ${item.dataset.label}: ${fmt.usd(item.raw)}`
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#6B7A99', font: { size: 10 }, maxRotation: 0 } },
+        y: { grid: { color: '#1F3864' }, ticks: { color: '#6B7A99', font: { size: 10 }, callback: v => '$' + (v / 1000).toFixed(0) + 'K' } }
+      }
+    }
+  });
+
+  const retFinalRE = ((port.valueRE[port.valueRE.length - 1] / CAPITAL_INICIAL) - 1) * 100;
+  const retFinalBH = ((port.valueBH[port.valueBH.length - 1] / CAPITAL_INICIAL) - 1) * 100;
+
+  document.getElementById('equityLeyenda').innerHTML = `
+    <div class="flex items-center gap-2 text-xs font-semibold text-ink-300">
+      <span class="w-6 h-[2.5px] rounded bg-sky"></span>
+      Rebalanceo Mensual <strong class="${retFinalRE >= 0 ? 'text-mint' : 'text-coral'} ml-1">${fmt.pct(retFinalRE)}</strong>
+    </div>
+    <div class="flex items-center gap-2 text-xs font-semibold text-ink-300">
+      <span class="w-6 border-t-2 border-dashed border-ink-500"></span>
+      Buy &amp; Hold <strong class="${retFinalBH >= 0 ? 'text-mint' : 'text-coral'} ml-1">${fmt.pct(retFinalBH)}</strong>
+    </div>
+  `;
+}
+
+/* ============================================================
+   RENDER: BARRAS DE ASIGNACIÓN ACTUAL VS OBJETIVO
+   ============================================================ */
+function renderizarAsignacion(donaInfo) {
+  const contenedor = document.getElementById('asigBarra');
+  contenedor.innerHTML = '';
+  const objetivo = 100 / TICKERS.length;
+
+  TICKERS.forEach((t, i) => {
+    const actual = donaInfo.pcts[i];
+    const div = document.createElement('div');
+    div.className = 'flex items-center gap-3';
+    div.innerHTML = `
+      <span class="text-xs font-bold text-sky w-[86px] shrink-0">${t}</span>
+      <div class="flex-1 flex flex-col gap-1">
+        <div class="flex items-center gap-2">
+          <div class="flex-1 h-[7px] bg-navy-deep rounded-full overflow-hidden">
+            <div class="h-full rounded-full" style="width:${actual}%;background:${COLORES_ACTIVO[t]}"></div>
+          </div>
+          <span class="text-[11px] font-bold w-10 text-right" style="color:${COLORES_ACTIVO[t]}">${actual.toFixed(1)}%</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="flex-1 h-[7px] bg-navy-deep rounded-full overflow-hidden relative">
+            <div class="h-full rounded-full border-t-2 border-dashed opacity-50" style="width:${objetivo}%;border-color:${COLORES_ACTIVO[t]}"></div>
+          </div>
+          <span class="text-[10px] font-semibold text-ink-500 w-10 text-right">obj ${objetivo.toFixed(0)}%</span>
+        </div>
+      </div>
+    `;
+    contenedor.appendChild(div);
+  });
+}
+
+/* ============================================================
+   RENDER: RESUMEN DE CAPITAL
+   ============================================================ */
+function renderizarCapital(port) {
+  const valorActual = port.valueRE[port.valueRE.length - 1];
+  const pnl = valorActual - CAPITAL_INICIAL;
+
+  const comisionEstimada = port.numRebalances * (CAPITAL_INICIAL * 0.02);
+  const comisionTotal = comisionEstimada * 0.001;
+
+  const rets = retornosDiarios(port.valueRE);
+  const gananciaBruta = rets.filter(r => r > 0).reduce((s, r) => s + r, 0);
+  const perdidaBruta  = Math.abs(rets.filter(r => r < 0).reduce((s, r) => s + r, 0));
+  const profitFactor = perdidaBruta > 0 ? gananciaBruta / perdidaBruta : 0;
+
+  document.getElementById('capInicial').textContent = fmt.usd(CAPITAL_INICIAL);
+  document.getElementById('capActual').textContent = fmt.usd(valorActual);
+  const pnlEl = document.getElementById('capPnl');
+  pnlEl.textContent = (pnl >= 0 ? '+' : '') + fmt.usd(pnl);
+  pnlEl.className = 'font-bold ' + (pnl >= 0 ? 'text-mint' : 'text-coral');
+  document.getElementById('capComisiones').textContent = '−' + fmt.usd(comisionTotal);
+  document.getElementById('capTrades').textContent = port.numRebalances;
+  document.getElementById('capProfitFactor').textContent = profitFactor.toFixed(2);
+}
+
+/* ============================================================
+   MODAL DE REBALANCEO — con datos reales del diferencial actual
+   ============================================================ */
+function abrirModal() {
+  if (!ESTADO) return;
+  const donaInfo = renderizarDona(ESTADO.port);
+  const objetivo = 100 / TICKERS.length;
+
+  const diffs = TICKERS.map((t, i) => Math.abs(donaInfo.pcts[i] - objetivo));
+  const capitalARedistribuir = diffs.reduce((s, d) => s + d, 0) / 100 * donaInfo.total / 2;
+  const ordenes = diffs.filter(d => d > 0.5).length;
+  const comision = capitalARedistribuir * 0.001;
+
+  document.getElementById('modalTabla').innerHTML = `
+    <div class="flex justify-between border-b border-navy-border/50 pb-2"><span class="text-ink-300">Capital a redistribuir</span><span class="font-bold text-white">${fmt.usd(capitalARedistribuir)}</span></div>
+    <div class="flex justify-between border-b border-navy-border/50 pb-2"><span class="text-ink-300">Órdenes a generar</span><span class="font-bold text-white">${ordenes} transacciones</span></div>
+    <div class="flex justify-between border-b border-navy-border/50 pb-2"><span class="text-ink-300">Comisión estimada (0.1%)</span><span class="font-bold text-white">${fmt.usd(comision)}</span></div>
+    <div class="flex justify-between"><span class="text-ink-300">Estrategia objetivo</span><span class="font-bold text-white text-right">${TICKERS.map(t => t + ' 20%').join(' · ')}</span></div>
+  `;
+
+  document.getElementById('modalOverlay').classList.add('visible');
+  document.body.style.overflow = 'hidden';
+}
+
+function cerrarModal() {
+  document.getElementById('modalOverlay').classList.remove('visible');
+  document.body.style.overflow = '';
+}
+
+function confirmarRebalanceo() {
+  if (ESTADO) {
+    const port = ESTADO.port;
+    const ultimoIdx = port.fechas.length - 1;
+    const valorTotal = TICKERS.reduce((s, t) => s + port.qtyRE[t] * port.precios[t][ultimoIdx], 0);
+    const objetivoPorActivo = valorTotal / TICKERS.length;
+    TICKERS.forEach(t => { port.qtyRE[t] = objetivoPorActivo / port.precios[t][ultimoIdx]; });
+    port.numRebalances++;
+    port.historialQty.push({ dia: ultimoIdx, qty: { ...port.qtyRE } });
+
+    renderizarTabla(port, ESTADO.senales);
+    const donaInfo = renderizarDona(port);
+    renderizarAsignacion(donaInfo);
+    renderMetricas(port);
+    renderizarCapital(port);
+  }
+
+  cerrarModal();
+  const toast = document.getElementById('toast');
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3500);
+}
+
+document.getElementById('modalOverlay').addEventListener('click', function(e) {
+  if (e.target === this) cerrarModal();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal(); });
+
+/* ============================================================
+   FLUJO PRINCIPAL — obtiene datos reales de MongoDB vía FastAPI
+   ============================================================ */
+async function cargarPortafolio() {
+  const apiUrl = getApiUrl();
+  if (!apiUrl) {
+    mostrarAviso('error', 'No hay URL de API. Vuelve al portal y verifica la conexión.');
+    setEstadoConexion(false);
+    setPanelHabilitado(false);
+    return;
+  }
+
+  try {
+    mostrarAviso('info', 'Obteniendo posiciones reales de MongoDB / FastAPI para los 5 tickers...');
+    const headers = { 'ngrok-skip-browser-warning': 'true' };
+
+    const [mercados, svcs] = await Promise.all([
+      Promise.all(TICKERS.map(t => fetch(apiUrl + '/api/mercado/' + encodeURIComponent(t), { headers }).then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status + ' en /api/mercado/' + t);
+        return r.json();
+      }))),
+      Promise.all(TICKERS.map(t => fetch(apiUrl + '/api/svc/' + encodeURIComponent(t), { headers }).then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status + ' en /api/svc/' + t);
+        return r.json();
+      })))
+    ]);
+
+    const seriesPorTicker = {};
+    mercados.forEach((data, i) => {
+      const t = TICKERS[i];
+      const datos = (data.datos || []).filter(d => d.close != null);
+      seriesPorTicker[t] = { fechas: datos.map(d => d.fecha), closes: datos.map(d => d.close) };
+    });
+
+    const senales = {};
+    svcs.forEach((data, i) => { senales[TICKERS[i]] = data.prediccion || {}; });
+
+    const port = construirPortafolio(seriesPorTicker);
+    ESTADO = { port, senales };
+
+    renderizarTabla(port, senales);
+    const donaInfo = renderizarDona(port);
+    renderizarEquity(port);
+    renderizarAsignacion(donaInfo);
+    renderMetricas(port);
+    renderizarCapital(port);
+
+    setEstadoConexion(true);
+    setPanelHabilitado(true);
+    limpiarAviso();
+  } catch (e) {
+    mostrarAviso('error', 'No se pudo obtener datos reales de la API (' + e.message + '). Vuelve al portal y verifica la conexión.');
+    setEstadoConexion(false);
+    setPanelHabilitado(false);
+  }
+}
+
+window.addEventListener('DOMContentLoaded', cargarPortafolio);
+</script>
+</body>
+</html>
