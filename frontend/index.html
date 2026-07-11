@@ -757,14 +757,14 @@
     const SUPABASE_URL = 'https://wfplmsfjhwwzeroigkkn.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndmcGxtc2ZqaHd3emVyb2lna2tuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM3MjE1NDIsImV4cCI6MjA5OTI5NzU0Mn0.1lWINOh_xWtVgXHvhK7YrfBiAunXbpKvsnCZOUXdiUs';
 
-    let supabase = null;
+    // IMPORTANTE: Renombramos a 'supabaseClient' para que no choque con la librería
+    let supabaseClient = null;
 
-    // Protegemos la inicialización para que, si el CDN es bloqueado, la interfaz siga funcionando
     try {
       if (window.supabase) {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       } else {
-        console.warn("Advertencia: El script de Supabase no pudo cargar (posible bloqueador de anuncios).");
+        console.warn("Advertencia: El script de Supabase no pudo cargar.");
       }
     } catch (error) {
       console.error("Error al inicializar Supabase:", error);
@@ -831,20 +831,17 @@
       }
     }
 
-    // FUNCIÓN MEJORADA: Ahora el botón seguirá girando hasta que Supabase responda
     async function simularCarga(btnId, ms, callback) {
       const btn = document.getElementById(btnId);
       btn.classList.add('cargando');
       btn.disabled = true;
       
-      // Pequeño retardo visual inicial
       await new Promise(resolve => setTimeout(resolve, ms));
       
       if (callback) {
         await callback();
       }
       
-      // Devuelve el botón a la normalidad solo cuando todo termina
       btn.classList.remove('cargando');
       btn.disabled = false;
     }
@@ -852,73 +849,61 @@
     /* =========================================================
        FORTALEZA DE CONTRASEÑA
        ========================================================= */
-
     function evaluarFortaleza(pass) {
-      // Criterios: longitud, mayúscula, número, símbolo
       const criterios = [
         pass.length >= 8,
         /[A-Z]/.test(pass),
         /[0-9]/.test(pass),
         /[^A-Za-z0-9]/.test(pass)
       ];
-      const nivel = criterios.filter(Boolean).length; // 0-4
+      const nivel = criterios.filter(Boolean).length;
 
       const colores = ['#DC3545', '#FD7E14', '#FFC107', '#198754'];
       const barras  = ['fb1','fb2','fb3','fb4'];
 
       barras.forEach((id, i) => {
         const barra = document.getElementById(id);
-        barra.style.background = i < nivel ? colores[nivel - 1] : '#D1D9E6';
+        if(barra) barra.style.background = i < nivel ? colores[nivel - 1] : '#D1D9E6';
       });
     }
-
 
     /* =========================================================
        PERFIL DE INVERSOR
        ========================================================= */
-
     let perfilSeleccionado = '';
 
     function seleccionarPerfil(valor, elem) {
-      // Quitar selección previa
       document.querySelectorAll('.perfil-opcion').forEach(el => {
         el.classList.remove('seleccionado');
         el.setAttribute('aria-pressed', 'false');
       });
-      // Aplicar al clickeado
       elem.classList.add('seleccionado');
       elem.setAttribute('aria-pressed', 'true');
       perfilSeleccionado = valor;
       document.getElementById('perfil-input').value = valor;
-      // Limpiar error si estaba visible
       document.getElementById('err-reg-perfil').classList.remove('visible');
     }
-
 
     /* =========================================================
        LÓGICA DE PANTALLA 1 — INICIO DE SESIÓN
        ========================================================= */
-
     function iniciarSesion() {
       let valido = true;
-      if (!supabase) {
+      if (!supabaseClient) {
         alert("❌ Error: No se pudo conectar con el servidor. Por favor, desactiva tu bloqueador de anuncios o revisa tu conexión a internet.");
         return;
       }
       const email = document.getElementById('login-email').value;
       const pass  = document.getElementById('login-pass').value;
 
-      // Limpiar errores previos
       limpiarError('login-email', 'err-login-email');
       limpiarError('login-pass',  'err-login-pass');
 
-      // Validar email
       if (!esEmailValido(email)) {
         marcarInvalido('login-email', 'err-login-email');
         valido = false;
       }
 
-      // Validar contraseña no vacía
       if (pass.trim() === '') {
         marcarInvalido('login-pass', 'err-login-pass');
         valido = false;
@@ -926,37 +911,31 @@
 
       if (!valido) return;
 
-      // Autenticación real contra Supabase
       simularCarga('btn-login', 1200, async () => {
         try {
-          const { data, error } = await supabase.auth.signInWithPassword({
+          const { data, error } = await supabaseClient.auth.signInWithPassword({
             email: email,
             password: pass
           });
 
           if (error) throw error;
-
-          // Autenticación correcta: redirigir de inmediato
           window.location.href = 'home.html';
         } catch (error) {
-          alert(error.message);
+          alert(`❌ Error al iniciar sesión: ${error.message}`);
         }
       });
     }
 
-    /** Simulación de OAuth con Google */
     function simularGoogle() {
       alert('🔗 Redirigiendo a Google OAuth 2.0...\n(Demo — integración con Google pendiente)');
     }
 
-
     /* =========================================================
        LÓGICA DE PANTALLA 2 — REGISTRO
        ========================================================= */
-
     function crearCuenta() {
       let valido = true;
-      if (!supabase) {
+      if (!supabaseClient) {
         alert("❌ Error: No se pudo conectar con el servidor. Por favor, desactiva tu bloqueador de anuncios o revisa tu conexión a internet.");
         return;
       }
@@ -966,14 +945,12 @@
       const confirm  = document.getElementById('reg-confirm').value;
       const terminos = document.getElementById('reg-terminos').checked;
 
-      // Limpiar todos los errores del formulario de registro
       ['reg-nombre','reg-email','reg-pass','reg-confirm'].forEach((id, i) => {
         limpiarError(id, ['err-reg-nombre','err-reg-email','err-reg-pass','err-reg-confirm'][i]);
       });
       document.getElementById('err-reg-perfil').classList.remove('visible');
       document.getElementById('err-reg-terminos').classList.remove('visible');
 
-      // Validaciones
       if (nombre.trim().length < 3) {
         marcarInvalido('reg-nombre', 'err-reg-nombre');
         valido = false;
@@ -1006,10 +983,9 @@
 
       if (!valido) return;
 
-      // Creación real de cuenta en Supabase
       simularCarga('btn-registro', 1500, async () => {
         try {
-          const { data, error } = await supabase.auth.signUp({
+          const { data, error } = await supabaseClient.auth.signUp({
             email: email,
             password: pass,
             options: {
@@ -1022,22 +998,19 @@
 
           if (error) throw error;
 
-          alert('🎉 Cuenta creada exitosamente.\n\nRevisa tu correo para verificar tu cuenta antes de iniciar sesión.');
+          alert('🎉 Cuenta creada exitosamente.\n\nAhora puedes iniciar sesión.');
           irA('login');
         } catch (error) {
-          alert(error.message);
+          alert(`❌ Error al crear cuenta: ${error.message}`);
         }
       });
     }
 
-
     /* =========================================================
        LÓGICA DE PANTALLA 3 — RECUPERAR CONTRASEÑA
        ========================================================= */
-
     function enviarEnlace() {
-      // AQUÍ VA LA PROTECCIÓN: Lo primero que hacemos es verificar la conexión
-      if (!supabase) {
+      if (!supabaseClient) {
         alert("❌ Error: No se pudo conectar con el servidor. Por favor, desactiva tu bloqueador de anuncios o revisa tu conexión a internet.");
         return;
       }
@@ -1052,29 +1025,24 @@
         return;
       }
 
-      // Envío real del enlace de recuperación vía Supabase
       simularCarga('btn-recuperar', 1000, async () => {
         try {
-          const { data, error } = await supabase.auth.resetPasswordForEmail(email);
+          const { data, error } = await supabaseClient.auth.resetPasswordForEmail(email);
 
           if (error) throw error;
 
-          // Ocultar campo y mostrar banner de confirmación
           document.getElementById('c-rec-email').style.display    = 'none';
           document.getElementById('btn-recuperar').style.display  = 'none';
           document.getElementById('banner-enviado').classList.add('visible');
         } catch (error) {
-          alert(error.message);
+          alert(`❌ Error: ${error.message}`);
         }
       });
     }
 
-
     /* =========================================================
        LIMPIAR ERRORES AL ESCRIBIR
        ========================================================= */
-
-    // Agregar listeners a todos los inputs para limpiar errores en tiempo real
     document.addEventListener('DOMContentLoaded', () => {
       const pares = [
         ['login-email',  'err-login-email'],
@@ -1091,12 +1059,10 @@
         if (el) el.addEventListener('input', () => limpiarError(inputId, errId));
       });
 
-      // Checkbox terminos
       document.getElementById('reg-terminos').addEventListener('change', () => {
         document.getElementById('err-reg-terminos').classList.remove('visible');
       });
 
-      // Soporte teclado para opciones de perfil
       document.querySelectorAll('.perfil-opcion').forEach(el => {
         el.addEventListener('keydown', e => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -1106,7 +1072,6 @@
         });
       });
     });
-
   </script>
 </body>
 </html>
