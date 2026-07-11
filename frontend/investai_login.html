@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InvestAI — Autenticación</title>
+
+  <!-- Fuente Inter desde Google Fonts (única dependencia externa, sin JS) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <style>
+    /* =========================================================
+       VARIABLES Y RESET
+       ========================================================= */
+    :root {
+      --azul-oscuro:  #1F3864;
+      --dorado:       #C5961A;
+      --dorado-claro: #E8B836;
+      --blanco:       #FFFFFF;
+      --negro:        #000000;
+      --error:        #DC3545;
+      --exito:        #198754;
+      --gris-claro:   #F4F6FA;
+      --gris-borde:   #D1D9E6;
+      --gris-texto:   #6B7A99;
+      --sombra: 0 8px 40px rgba(31,56,100,0.13);
+      --radio: 12px;
+      --transicion: 0.35s cubic-bezier(.4,0,.2,1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', Calibri, sans-serif;
+      background: linear-gradient(135deg, #0f2147 0%, #1F3864 55%, #2e4f8a 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Fondo decorativo — retícula financiera sutil */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        repeating-linear-gradient(0deg,   transparent, transparent 59px, rgba(197,150,26,.06) 60px),
+        repeating-linear-gradient(90deg,  transparent, transparent 59px, rgba(197,150,26,.06) 60px);
+      pointer-events: none;
+    }
+
+    /* =========================================================
+       CONTENEDOR PRINCIPAL
+       ========================================================= */
+    .auth-wrapper {
+      width: 100%;
+      max-width: 460px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* =========================================================
+       HEADER DEL SISTEMA
+       ========================================================= */
+    .brand-header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .brand-logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    /* Ícono SVG inline — sin dependencias externas */
+    .brand-logo svg {
+      width: 40px;
+      height: 40px;
+      flex-shrink: 0;
+    }
+
+    .brand-name {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--blanco);
+      letter-spacing: -0.5px;
+    }
+
+    .brand-name span {
+      color: var(--dorado);
+    }
+
+    .brand-tagline {
+      font-size: 13px;
+      color: rgba(255,255,255,0.65);
+      letter-spacing: 0.4px;
+    }
+
+    /* =========================================================
+       TARJETA DE FORMULARIO
+       ========================================================= */
+    .card {
+      background: var(--blanco);
+      border-radius: 20px;
+      box-shadow: var(--sombra);
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Barra superior dorada */
+    .card::before {
+      content: '';
+      display: block;
+      height: 4px;
+      background: linear-gradient(90deg, var(--azul-oscuro), var(--dorado));
+    }
+
+    /* =========================================================
+       PANTALLAS — sistema de slide sin recarga
+       ========================================================= */
+    .pantalla {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; 
+      /* altura dinámica manejada por JS */
+      padding: 36px 40px 32px;
+      opacity: 0;
+      transform: translateX(40px);
+      transition: opacity var(--transicion), transform var(--transicion);
+      pointer-events: none;
+      visibility: hidden;
+    }
+
+    .pantalla.activa {
+      position: relative;
+      opacity: 1;
+      transform: translateX(0);
+      pointer-events: all;
+      visibility: visible;
+    }
+
+    .pantalla.salir-izq {
+      opacity: 0;
+      transform: translateX(-40px);
+      pointer-events: none;
+    }
+
+    /* =========================================================
+       TIPOGRAFÍA INTERIOR
+       ========================================================= */
+    .pantalla-titulo {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--azul-oscuro);
+      margin-bottom: 4px;
+    }
+
+    .pantalla-subtitulo {
+      font-size: 13.5px;
+      color: var(--gris-texto);
+      margin-bottom: 28px;
+    }
+
+    /* =========================================================
+       CAMPOS DEL FORMULARIO
+       ========================================================= */
+    .campo {
+      margin-bottom: 18px;
+      position: relative;
+    }
+
+    .campo label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--azul-oscuro);
+      margin-bottom: 6px;
+    }
+
+    .campo input,
+    .campo select {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1.5px solid var(--gris-borde);
+      border-radius: var(--radio);
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--negro);
+      background: var(--blanco);
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+      appearance: none;
+    }
+
+    .campo input:focus,
+    .campo select:focus {
+      border-color: var(--azul-oscuro);
+      box-shadow: 0 0 0 3px rgba(31,56,100,0.10);
+    }
+
+    .campo input.invalido {
+      border-color: var(--error);
+      box-shadow: 0 0 0 3px rgba(220,53,69,0.10);
+    }
+
+    /* Icono de contraseña — mostrar/ocultar */
+    .campo-pass { position: relative; }
+    .campo-pass input { padding-right: 44px; }
+    .toggle-pass {
+      position: absolute;
+      right: 13px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+      color: var(--gris-texto);
+      line-height: 1;
+      font-size: 16px;
+    }
+    .toggle-pass:hover { color: var(--azul-oscuro); }
+
+    /* Selector estilizado */
+    .campo select {
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%231F3864' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 36px;
+    }
+
+    /* Mensaje de error bajo el campo */
+    .msg-error {
+      font-size: 12px;
+      color: var(--error);
+      margin-top: 5px;
+      display: none;
+    }
+    .msg-error.visible { display: block; }
+
+    /* =========================================================
+       CHECKBOX
+       ========================================================= */
+    .campo-check {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 22px;
+    }
+
+    .campo-check input[type="checkbox"] {
+      width: 17px;
+      height: 17px;
+      flex-shrink: 0;
+      margin-top: 2px;
+      accent-color: var(--azul-oscuro);
+      cursor: pointer;
+    }
+
+    .campo-check label {
+      font-size: 13px;
+      color: var(--gris-texto);
+      cursor: pointer;
+      line-height: 1.5;
+    }
+
+    .campo-check label a {
+      color: var(--azul-oscuro);
+      text-decoration: underline;
+    }
+
+    /* =========================================================
+       BOTONES
+       ========================================================= */
+    .btn {
+      width: 100%;
+      padding: 13px;
+      border: none;
+      border-radius: var(--radio);
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+      letter-spacing: 0.2px;
+    }
+
+    .btn:active { transform: scale(0.985); }
+
+    .btn-primario {
+      background: linear-gradient(135deg, var(--azul-oscuro) 0%, #2a4d8a 100%);
+      color: var(--blanco);
+      box-shadow: 0 4px 14px rgba(31,56,100,0.28);
+    }
+
+    .btn-primario:hover {
+      background: linear-gradient(135deg, #162a50 0%, var(--azul-oscuro) 100%);
+      box-shadow: 0 6px 20px rgba(31,56,100,0.38);
+    }
+
+    .btn-google {
+      background: var(--blanco);
+      color: var(--negro);
+      border: 1.5px solid var(--gris-borde);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .btn-google:hover {
+      background: var(--gris-claro);
+      border-color: #b0bbd0;
+    }
+
+    .btn-google svg { flex-shrink: 0; }
+
+    /* =========================================================
+       DIVISOR
+       ========================================================= */
+    .divisor {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 20px 0;
+    }
+
+    .divisor::before,
+    .divisor::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--gris-borde);
+    }
+
+    .divisor span {
+      font-size: 12px;
+      color: var(--gris-texto);
+      white-space: nowrap;
+    }
+
+    /* =========================================================
+       ENLACES Y TEXTO INFERIOR
+       ========================================================= */
+    .enlace-accion {
+      background: none;
+      border: none;
+      color: var(--azul-oscuro);
+      font-family: inherit;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: underline;
+      padding: 0;
+    }
+
+    .enlace-accion:hover { color: var(--dorado); }
+
+    .pie-pantalla {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 13.5px;
+      color: var(--gris-texto);
+    }
+
+    .pie-pantalla .enlace-accion { font-size: 13.5px; }
+
+    .olvidaste {
+      text-align: right;
+      margin-top: -10px;
+      margin-bottom: 18px;
+    }
+
+    .olvidaste button {
+      font-size: 12.5px;
+      color: var(--gris-texto);
+      font-weight: 500;
+    }
+
+    .olvidaste button:hover { color: var(--azul-oscuro); }
+
+    /* =========================================================
+       BANNER DE ÉXITO (recuperación de contraseña)
+       ========================================================= */
+    .banner-exito {
+      display: none;
+      background: #d1f0e0;
+      border: 1.5px solid #a3d9be;
+      border-radius: var(--radio);
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .banner-exito.visible { display: block; }
+
+    .banner-exito p {
+      font-size: 14px;
+      color: #0f5132;
+      line-height: 1.5;
+    }
+
+    .banner-exito .icono-exito {
+      font-size: 26px;
+      margin-bottom: 4px;
+    }
+
+    /* =========================================================
+       INDICADORES DE FORTALEZA DE CONTRASEÑA
+       ========================================================= */
+    .fortaleza-wrap {
+      margin-top: 6px;
+      display: flex;
+      gap: 4px;
+    }
+
+    .fortaleza-barra {
+      flex: 1;
+      height: 4px;
+      border-radius: 4px;
+      background: var(--gris-borde);
+      transition: background 0.3s;
+    }
+
+    /* =========================================================
+       PERFIL INVERSOR — selector visual
+       ========================================================= */
+    .perfil-opciones {
+      display: flex;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .perfil-opcion {
+      flex: 1;
+      text-align: center;
+      padding: 10px 6px;
+      border: 1.5px solid var(--gris-borde);
+      border-radius: var(--radio);
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      font-size: 12.5px;
+      color: var(--gris-texto);
+      font-weight: 500;
+      user-select: none;
+    }
+
+    .perfil-opcion .perfil-icono { font-size: 20px; display: block; margin-bottom: 4px; }
+
+    .perfil-opcion:hover { border-color: var(--azul-oscuro); color: var(--azul-oscuro); }
+
+    .perfil-opcion.seleccionado {
+      border-color: var(--dorado);
+      background: #fffbf0;
+      color: var(--azul-oscuro);
+      font-weight: 600;
+    }
+
+    /* Campo oculto que almacena la selección */
+    #perfil-input { display: none; }
+
+    /* =========================================================
+       RESPONSIVO — Mobile
+       ========================================================= */
+    @media (max-width: 520px) {
+      .pantalla { padding: 28px 22px 24px; }
+      .pantalla-titulo { font-size: 19px; }
+      .brand-name { font-size: 21px; }
+    }
+
+    /* =========================================================
+       LOADER del botón
+       ========================================================= */
+    .btn .spinner {
+      display: none;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto;
+    }
+
+    .btn.cargando .spinner { display: inline-block; }
+    .btn.cargando .texto-btn { display: none; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* =========================================================
+       CAMPO DE CONFIRMACIÓN — ícono check
+       ========================================================= */
+    .check-ok::after {
+      content: '✓';
+      position: absolute;
+      right: 13px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--exito);
+      font-weight: 700;
+      font-size: 15px;
+    }
+    .campo-pass.check-ok::after { right: 44px; }
+
+  </style>
+</head>
+<body>
+
+  <div class="auth-wrapper">
+
+    <!-- ── ENCABEZADO DE MARCA ── -->
+    <div class="brand-header">
+      <div class="brand-logo">
+        <!-- Logo SVG inline: gráfico de vela financiera con IA -->
+        <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect width="40" height="40" rx="10" fill="#C5961A"/>
+          <rect x="10" y="8" width="4" height="24" rx="2" fill="white" opacity="0.3"/>
+          <rect x="10" y="13" width="4" height="12" rx="1.5" fill="white"/>
+          <rect x="19" y="5" width="4" height="30" rx="2" fill="white" opacity="0.3"/>
+          <rect x="19" y="10" width="4" height="16" rx="1.5" fill="#1F3864"/>
+          <rect x="28" y="10" width="4" height="22" rx="2" fill="white" opacity="0.3"/>
+          <rect x="28" y="16" width="4" height="10" rx="1.5" fill="white"/>
+          <circle cx="32" cy="10" r="5" fill="#1F3864"/>
+          <path d="M30 10l1.5 1.5L34 8" stroke="white" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="brand-name">Invest<span>AI</span></span>
+      </div>
+      <p class="brand-tagline">Sistema Inteligente de Inversión — 16 modelos de IA predictivos</p>
+    </div>
+
+    <!-- ── TARJETA PRINCIPAL ── -->
+    <div class="card" id="tarjeta">
+
+      <!-- ══════════════════════════════════════════════
+           PANTALLA 1: INICIO DE SESIÓN
+           ══════════════════════════════════════════════ -->
+      <div class="pantalla activa" id="pantalla-login" role="main" aria-label="Inicio de sesión">
+
+        <h1 class="pantalla-titulo">Bienvenido de vuelta</h1>
+        <p class="pantalla-subtitulo">Ingresa tus credenciales para acceder al sistema.</p>
+
+        <!-- Botón de Google (arriba para mayor visibilidad) -->
+        <button class="btn btn-google" onclick="simularGoogle()" type="button" aria-label="Continuar con Google">
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+            <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+            <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+            <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+            <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+          </svg>
+          Continuar con Google
+        </button>
+
+        <div class="divisor"><span>o inicia sesión con tu correo</span></div>
+
+        <!-- Campo: email -->
+        <div class="campo" id="c-login-email">
+          <label for="login-email">Correo electrónico</label>
+          <input type="email" id="login-email" placeholder="inversor@ejemplo.com" autocomplete="email" />
+          <p class="msg-error" id="err-login-email">Ingresa un correo electrónico válido.</p>
+        </div>
+
+        <!-- Campo: contraseña -->
+        <div class="campo campo-pass" id="c-login-pass">
+          <label for="login-pass">Contraseña</label>
+          <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" />
+          <button type="button" class="toggle-pass" onclick="togglePass('login-pass', this)" aria-label="Mostrar contraseña">👁</button>
+          <p class="msg-error" id="err-login-pass">La contraseña no puede estar vacía.</p>
+        </div>
+
+        <!-- Enlace: olvidé contraseña -->
+        <div class="olvidaste">
+          <button type="button" class="enlace-accion" onclick="irA('recuperar')" style="text-decoration:none;color:var(--gris-texto);">
+            ¿Olvidaste tu contraseña?
+          </button>
+        </div>
+
+        <!-- Botón principal -->
+        <button class="btn btn-primario" id="btn-login" onclick="iniciarSesion()" type="button">
+          <span class="spinner"></span>
+          <span class="texto-btn">Iniciar Sesión</span>
+        </button>
+
+        <!-- Pie de pantalla -->
+        <p class="pie-pantalla">
+          ¿No tienes cuenta?
+          <button class="enlace-accion" type="button" onclick="irA('registro')">Crear una cuenta</button>
+        </p>
+
+      </div><!-- /pantalla-login -->
+
+
+      <!-- ══════════════════════════════════════════════
+           PANTALLA 2: REGISTRO
+           ══════════════════════════════════════════════ -->
+      <div class="pantalla" id="pantalla-registro" role="main" aria-label="Registro de nuevo usuario">
+
+        <h1 class="pantalla-titulo">Crear cuenta</h1>
+        <p class="pantalla-subtitulo">Únete a InvestAI y accede a predicciones basadas en IA.</p>
+
+        <!-- Nombre completo -->
+        <div class="campo" id="c-reg-nombre">
+          <label for="reg-nombre">Nombre completo</label>
+          <input type="text" id="reg-nombre" placeholder="María García López" autocomplete="name" />
+          <p class="msg-error" id="err-reg-nombre">Ingresa tu nombre completo.</p>
+        </div>
+
+        <!-- Email -->
+        <div class="campo" id="c-reg-email">
+          <label for="reg-email">Correo electrónico</label>
+          <input type="email" id="reg-email" placeholder="inversor@ejemplo.com" autocomplete="email" />
+          <p class="msg-error" id="err-reg-email">Ingresa un correo electrónico válido.</p>
+        </div>
+
+        <!-- Contraseña -->
+        <div class="campo campo-pass" id="c-reg-pass">
+          <label for="reg-pass">Contraseña</label>
+          <input type="password" id="reg-pass" placeholder="Mínimo 8 caracteres" autocomplete="new-password" oninput="evaluarFortaleza(this.value)" />
+          <button type="button" class="toggle-pass" onclick="togglePass('reg-pass', this)" aria-label="Mostrar contraseña">👁</button>
+          <p class="msg-error" id="err-reg-pass">La contraseña debe tener al menos 8 caracteres.</p>
+          <!-- Indicador de fortaleza -->
+          <div class="fortaleza-wrap" aria-label="Fortaleza de contraseña">
+            <div class="fortaleza-barra" id="fb1"></div>
+            <div class="fortaleza-barra" id="fb2"></div>
+            <div class="fortaleza-barra" id="fb3"></div>
+            <div class="fortaleza-barra" id="fb4"></div>
+          </div>
+        </div>
+
+        <!-- Confirmar contraseña -->
+        <div class="campo campo-pass" id="c-reg-confirm">
+          <label for="reg-confirm">Confirmar contraseña</label>
+          <input type="password" id="reg-confirm" placeholder="Repite tu contraseña" autocomplete="new-password" />
+          <button type="button" class="toggle-pass" onclick="togglePass('reg-confirm', this)" aria-label="Mostrar contraseña">👁</button>
+          <p class="msg-error" id="err-reg-confirm">Las contraseñas no coinciden.</p>
+        </div>
+
+        <!-- Perfil de inversor -->
+        <div class="campo">
+          <label>Perfil de inversor</label>
+          <div class="perfil-opciones" role="group" aria-label="Selecciona tu perfil de inversor">
+            <div class="perfil-opcion" onclick="seleccionarPerfil('Conservador', this)" role="button" tabindex="0" aria-pressed="false">
+              <span class="perfil-icono">🛡️</span>
+              Conservador
+            </div>
+            <div class="perfil-opcion" onclick="seleccionarPerfil('Moderado', this)" role="button" tabindex="0" aria-pressed="false">
+              <span class="perfil-icono">⚖️</span>
+              Moderado
+            </div>
+            <div class="perfil-opcion" onclick="seleccionarPerfil('Agresivo', this)" role="button" tabindex="0" aria-pressed="false">
+              <span class="perfil-icono">🚀</span>
+              Agresivo
+            </div>
+          </div>
+          <input type="hidden" id="perfil-input" value="" />
+          <p class="msg-error" id="err-reg-perfil">Selecciona tu perfil de inversor.</p>
+        </div>
+
+        <!-- Términos y condiciones -->
+        <div class="campo-check">
+          <input type="checkbox" id="reg-terminos" />
+          <label for="reg-terminos">
+            Acepto los <a href="#" onclick="return false;">Términos y Condiciones</a> y la
+            <a href="#" onclick="return false;">Política de Privacidad</a> de InvestAI.
+          </label>
+        </div>
+        <p class="msg-error" id="err-reg-terminos" style="margin-top:-14px; margin-bottom:12px;">Debes aceptar los términos para continuar.</p>
+
+        <!-- Botón principal -->
+        <button class="btn btn-primario" id="btn-registro" onclick="crearCuenta()" type="button">
+          <span class="spinner"></span>
+          <span class="texto-btn">Crear Cuenta</span>
+        </button>
+
+        <!-- Pie -->
+        <p class="pie-pantalla">
+          ¿Ya tienes cuenta?
+          <button class="enlace-accion" type="button" onclick="irA('login')">Iniciar sesión</button>
+        </p>
+
+      </div><!-- /pantalla-registro -->
+
+
+      <!-- ══════════════════════════════════════════════
+           PANTALLA 3: RECUPERAR CONTRASEÑA
+           ══════════════════════════════════════════════ -->
+      <div class="pantalla" id="pantalla-recuperar" role="main" aria-label="Recuperación de contraseña">
+
+        <!-- Botón volver -->
+        <button type="button" onclick="irA('login')" style="background:none;border:none;cursor:pointer;color:var(--gris-texto);font-size:13px;font-family:inherit;margin-bottom:18px;display:flex;align-items:center;gap:6px;padding:0;">
+          ← Volver al inicio de sesión
+        </button>
+
+        <h1 class="pantalla-titulo">Recuperar contraseña</h1>
+        <p class="pantalla-subtitulo">
+          Ingresa tu correo registrado y te enviaremos un enlace para restablecer tu contraseña.
+        </p>
+
+        <!-- Banner de éxito (oculto hasta el envío) -->
+        <div class="banner-exito" id="banner-enviado" role="alert">
+          <div class="icono-exito">✅</div>
+          <p>
+            <strong>Enlace enviado.</strong><br>
+            Revisa tu bandeja de entrada y la carpeta de spam.
+            El enlace expira en 30 minutos.
+          </p>
+        </div>
+
+        <!-- Email -->
+        <div class="campo" id="c-rec-email">
+          <label for="rec-email">Correo electrónico</label>
+          <input type="email" id="rec-email" placeholder="inversor@ejemplo.com" autocomplete="email" />
+          <p class="msg-error" id="err-rec-email">Ingresa un correo electrónico válido.</p>
+        </div>
+
+        <!-- Botón principal -->
+        <button class="btn btn-primario" id="btn-recuperar" onclick="enviarEnlace()" type="button">
+          <span class="spinner"></span>
+          <span class="texto-btn">Enviar Enlace</span>
+        </button>
+
+        <!-- Pie -->
+        <p class="pie-pantalla">
+          ¿No tienes cuenta?
+          <button class="enlace-accion" type="button" onclick="irA('registro')">Regístrate gratis</button>
+        </p>
+
+      </div><!-- /pantalla-recuperar -->
+
+    </div><!-- /card -->
+
+    <!-- Pie legal -->
+    <p style="text-align:center; color:rgba(255,255,255,0.4); font-size:11.5px; margin-top:18px; letter-spacing:0.3px;">
+      InvestAI © 2026 · UNMSM FISI · iDeSo · Uso educativo
+    </p>
+
+  </div><!-- /auth-wrapper -->
+
+
+  <script>
+    /* =========================================================
+       NAVEGACIÓN ENTRE PANTALLAS
+       ========================================================= */
+
+    // Mapa de IDs de pantalla
+    const PANTALLAS = {
+      login:    'pantalla-login',
+      registro: 'pantalla-registro',
+      recuperar:'pantalla-recuperar'
+    };
+
+    let pantallaActual = 'login';
+
+    /**
+     * Navega a la pantalla indicada con transición suave.
+     * @param {string} destino - clave de PANTALLAS
+     */
+    function irA(destino) {
+      if (destino === pantallaActual) return;
+
+      const elActual  = document.getElementById(PANTALLAS[pantallaActual]);
+      const elDestino = document.getElementById(PANTALLAS[destino]);
+
+      // Ocultar pantalla actual
+      elActual.classList.remove('activa');
+      elActual.classList.add('salir-izq');
+
+      // Mostrar destino tras breve retardo para que se vea la transición
+      setTimeout(() => {
+        elActual.classList.remove('salir-izq');
+        elDestino.classList.add('activa');
+        pantallaActual = destino;
+
+        // Hacer scroll al inicio de la tarjeta en mobile
+        document.getElementById('tarjeta').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 280);
+    }
+
+
+    /* =========================================================
+       UTILIDADES DE VALIDACIÓN
+       ========================================================= */
+
+    /** Valida formato de email */
+    function esEmailValido(email) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+    }
+
+    /** Marca un campo como inválido y muestra mensaje */
+    function marcarInvalido(inputId, errId) {
+      document.getElementById(inputId).classList.add('invalido');
+      document.getElementById(errId).classList.add('visible');
+    }
+
+    /** Limpia el estado de error de un campo */
+    function limpiarError(inputId, errId) {
+      const input = document.getElementById(inputId);
+      if (input) {
+        input.classList.remove('invalido');
+        document.getElementById(errId).classList.remove('visible');
+      }
+    }
+
+    /** Muestra/oculta contraseña */
+    function togglePass(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = '🙈';
+        btn.setAttribute('aria-label', 'Ocultar contraseña');
+      } else {
+        input.type = 'password';
+        btn.textContent = '👁';
+        btn.setAttribute('aria-label', 'Mostrar contraseña');
+      }
+    }
+
+    /** Simula estado de carga en un botón */
+    function simularCarga(btnId, ms, callback) {
+      const btn = document.getElementById(btnId);
+      btn.classList.add('cargando');
+      btn.disabled = true;
+      setTimeout(() => {
+        btn.classList.remove('cargando');
+        btn.disabled = false;
+        if (callback) callback();
+      }, ms);
+    }
+
+
+    /* =========================================================
+       FORTALEZA DE CONTRASEÑA
+       ========================================================= */
+
+    function evaluarFortaleza(pass) {
+      // Criterios: longitud, mayúscula, número, símbolo
+      const criterios = [
+        pass.length >= 8,
+        /[A-Z]/.test(pass),
+        /[0-9]/.test(pass),
+        /[^A-Za-z0-9]/.test(pass)
+      ];
+      const nivel = criterios.filter(Boolean).length; // 0-4
+
+      const colores = ['#DC3545', '#FD7E14', '#FFC107', '#198754'];
+      const barras  = ['fb1','fb2','fb3','fb4'];
+
+      barras.forEach((id, i) => {
+        const barra = document.getElementById(id);
+        barra.style.background = i < nivel ? colores[nivel - 1] : '#D1D9E6';
+      });
+    }
+
+
+    /* =========================================================
+       PERFIL DE INVERSOR
+       ========================================================= */
+
+    let perfilSeleccionado = '';
+
+    function seleccionarPerfil(valor, elem) {
+      // Quitar selección previa
+      document.querySelectorAll('.perfil-opcion').forEach(el => {
+        el.classList.remove('seleccionado');
+        el.setAttribute('aria-pressed', 'false');
+      });
+      // Aplicar al clickeado
+      elem.classList.add('seleccionado');
+      elem.setAttribute('aria-pressed', 'true');
+      perfilSeleccionado = valor;
+      document.getElementById('perfil-input').value = valor;
+      // Limpiar error si estaba visible
+      document.getElementById('err-reg-perfil').classList.remove('visible');
+    }
+
+
+    /* =========================================================
+       LÓGICA DE PANTALLA 1 — INICIO DE SESIÓN
+       ========================================================= */
+
+    function iniciarSesion() {
+      let valido = true;
+
+      const email = document.getElementById('login-email').value;
+      const pass  = document.getElementById('login-pass').value;
+
+      // Limpiar errores previos
+      limpiarError('login-email', 'err-login-email');
+      limpiarError('login-pass',  'err-login-pass');
+
+      // Validar email
+      if (!esEmailValido(email)) {
+        marcarInvalido('login-email', 'err-login-email');
+        valido = false;
+      }
+
+      // Validar contraseña no vacía
+      if (pass.trim() === '') {
+        marcarInvalido('login-pass', 'err-login-pass');
+        valido = false;
+      }
+
+      if (!valido) return;
+
+      // Simular petición al servidor (1.2 s)
+      simularCarga('btn-login', 1200, () => {
+        // En producción: hacer fetch() al backend de autenticación
+        alert('✅ Acceso concedido.\n\nBienvenido a InvestAI — Sistema Inteligente de Inversión.\n(Demo — integración con backend pendiente)');
+      });
+    }
+
+    /** Simulación de OAuth con Google */
+    function simularGoogle() {
+      alert('🔗 Redirigiendo a Google OAuth 2.0...\n(Demo — integración con Google pendiente)');
+    }
+
+
+    /* =========================================================
+       LÓGICA DE PANTALLA 2 — REGISTRO
+       ========================================================= */
+
+    function crearCuenta() {
+      let valido = true;
+
+      const nombre   = document.getElementById('reg-nombre').value;
+      const email    = document.getElementById('reg-email').value;
+      const pass     = document.getElementById('reg-pass').value;
+      const confirm  = document.getElementById('reg-confirm').value;
+      const terminos = document.getElementById('reg-terminos').checked;
+
+      // Limpiar todos los errores del formulario de registro
+      ['reg-nombre','reg-email','reg-pass','reg-confirm'].forEach((id, i) => {
+        limpiarError(id, ['err-reg-nombre','err-reg-email','err-reg-pass','err-reg-confirm'][i]);
+      });
+      document.getElementById('err-reg-perfil').classList.remove('visible');
+      document.getElementById('err-reg-terminos').classList.remove('visible');
+
+      // Validaciones
+      if (nombre.trim().length < 3) {
+        marcarInvalido('reg-nombre', 'err-reg-nombre');
+        valido = false;
+      }
+
+      if (!esEmailValido(email)) {
+        marcarInvalido('reg-email', 'err-reg-email');
+        valido = false;
+      }
+
+      if (pass.length < 8) {
+        marcarInvalido('reg-pass', 'err-reg-pass');
+        valido = false;
+      }
+
+      if (confirm !== pass || confirm === '') {
+        marcarInvalido('reg-confirm', 'err-reg-confirm');
+        valido = false;
+      }
+
+      if (!perfilSeleccionado) {
+        document.getElementById('err-reg-perfil').classList.add('visible');
+        valido = false;
+      }
+
+      if (!terminos) {
+        document.getElementById('err-reg-terminos').classList.add('visible');
+        valido = false;
+      }
+
+      if (!valido) return;
+
+      // Simular creación de cuenta (1.5 s)
+      simularCarga('btn-registro', 1500, () => {
+        alert(`🎉 Cuenta creada exitosamente.\n\nBienvenido/a, ${nombre.split(' ')[0]}.\nPerfil: ${perfilSeleccionado}\n\n(Demo — integración con backend pendiente)`);
+        irA('login');
+      });
+    }
+
+
+    /* =========================================================
+       LÓGICA DE PANTALLA 3 — RECUPERAR CONTRASEÑA
+       ========================================================= */
+
+    function enviarEnlace() {
+      const email = document.getElementById('rec-email').value;
+
+      limpiarError('rec-email', 'err-rec-email');
+      document.getElementById('banner-enviado').classList.remove('visible');
+
+      if (!esEmailValido(email)) {
+        marcarInvalido('rec-email', 'err-rec-email');
+        return;
+      }
+
+      // Simular envío de email (1.0 s)
+      simularCarga('btn-recuperar', 1000, () => {
+        // Ocultar campo y mostrar banner de confirmación
+        document.getElementById('c-rec-email').style.display    = 'none';
+        document.getElementById('btn-recuperar').style.display  = 'none';
+        document.getElementById('banner-enviado').classList.add('visible');
+      });
+    }
+
+
+    /* =========================================================
+       LIMPIAR ERRORES AL ESCRIBIR
+       ========================================================= */
+
+    // Agregar listeners a todos los inputs para limpiar errores en tiempo real
+    document.addEventListener('DOMContentLoaded', () => {
+      const pares = [
+        ['login-email',  'err-login-email'],
+        ['login-pass',   'err-login-pass'],
+        ['reg-nombre',   'err-reg-nombre'],
+        ['reg-email',    'err-reg-email'],
+        ['reg-pass',     'err-reg-pass'],
+        ['reg-confirm',  'err-reg-confirm'],
+        ['rec-email',    'err-rec-email'],
+      ];
+
+      pares.forEach(([inputId, errId]) => {
+        const el = document.getElementById(inputId);
+        if (el) el.addEventListener('input', () => limpiarError(inputId, errId));
+      });
+
+      // Checkbox terminos
+      document.getElementById('reg-terminos').addEventListener('change', () => {
+        document.getElementById('err-reg-terminos').classList.remove('visible');
+      });
+
+      // Soporte teclado para opciones de perfil
+      document.querySelectorAll('.perfil-opcion').forEach(el => {
+        el.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            el.click();
+          }
+        });
+      });
+    });
+
+  </script>
+</body>
+</html>
