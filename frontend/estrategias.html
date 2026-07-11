@@ -72,11 +72,11 @@
       <a href="investai_nlp.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="newspaper" class="w-3.5 h-3.5"></i>NLP Noticias</a>
       <!-- Selector simplificado en navbar -->
       <select id="nav-ticker" class="ml-2 bg-navy-card border border-navy-border text-white text-xs rounded-lg px-2 py-1 outline-none focus:border-teal">
-        <option value="AAPL">AAPL</option>
-        <option value="MSFT">MSFT</option>
-        <option value="GOOGL">GOOGL</option>
-        <option value="TSLA">TSLA</option>
-        <option value="NVDA">NVDA</option>
+        <option value="BVN">Buenaventura (BVN)</option>
+        <option value="FSM">Fortuna Silver (FSM)</option>
+        <option value="BHP">BHP Group (BHP)</option>
+        <option value="ABX.TO">Barrick Gold (ABX.TO)</option>
+        <option value="VOLCABC1.LM">Volcan (VOLCABC1.LM)</option>
       </select>
     </nav>
   </div>
@@ -289,32 +289,122 @@
     });
   }
 
-  function generarEstrategias() {
-    const spot = TICKERS[estado.ticker].precio;
-    const S = spot;
-    const sC1 = +(S * 1.03).toFixed(2), sC2 = +(S * 1.08).toFixed(2);
-    const sP1 = +(S * 0.97).toFixed(2), sP2 = +(S * 0.92).toFixed(2);
-    const vol = TICKERS[estado.ticker].vol, t = estado.vto / 365;
-    const pC1 = +(S * vol * Math.sqrt(t) * 0.4).toFixed(2), pC2 = +(S * vol * Math.sqrt(t) * 0.22).toFixed(2);
-    const pP1 = +(S * vol * Math.sqrt(t) * 0.38).toFixed(2), pP2 = +(S * vol * Math.sqrt(t) * 0.18).toFixed(2);
-    const pCC = +(S * vol * Math.sqrt(t) * 0.25).toFixed(2);
+  // Variable global para guardar los datos recibidos de la API
+let estrategiasAPI = null;
 
-    const lotes = Math.max(1, Math.floor(estado.capital / (S * 100)));
-    const pnlCC = payoffCoveredCall(S, pCC, sC1).map(v => v * lotes * 100);
-    const pnlNP = payoffNakedPut(S, pP1, sP1).map(v => v * lotes * 100);
-    const pnlBCS = payoffBullCallSpread(S, pC1, pC2, sC1, sC2).map(v => v * lotes * 100);
-    const pnlBPS = payoffBearPutSpread(S, pP1, pP2, sP1, sP2).map(v => v * lotes * 100);
-    const pIC = +((pC1 - pC2 + pP1 - pP2) * 0.5).toFixed(2);
-    const pnlIC = payoffIronCondor(S, pIC, sP2, sP1, sC1, sC2).map(v => v * lotes * 100);
+async function fetchEstrategiasData() {
+  // 1. Obtener la URL base de tu API (la que guardaste con ngrok en home.html)
+  const API_URL = sessionStorage.getItem('API_URL') || "http://127.0.0.1:8000";
+  
+  // 2. Obtener lo que el usuario seleccionó en la interfaz
+  const ticker = document.getElementById('nav-ticker').value;
+  
+  // Dependiendo de cómo llamaste a tus selectores de riesgo en el HTML, por ejemplo:
+  // const riesgoSeleccionado = document.getElementById('selector-riesgo').value; // 'Conservador', 'Moderado' o 'Agresivo'
+  const riesgoSeleccionado = "Moderado"; // Fijo por ahora, ajústalo según tu HTML
+  
+  try {
+    // 3. Mostrar un indicador de carga en la señal
+    const circuloSenal = document.getElementById('senal-circulo');
+    if(circuloSenal) {
+      circuloSenal.innerHTML = '<i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>';
+      lucide.createIcons();
+    }
 
-    return [
-      { tipo: "cc", nombre: "Covered Call", senal: "hold", color: "#3B82F6", maxBen: +(pCC + (sC1 - S)).toFixed(2), maxRies: -(S - pCC).toFixed(2), break: +(S - pCC).toFixed(2), ratioB_R: +(((pCC + sC1 - S) / (S - pCC))).toFixed(2), precios: rangoPrecio(S), pnl: pnlCC, desc: `Mantener 100 acciones y vender call strike $${sC1}.`, contratos: lotes, prima: pCC },
-      { tipo: "np", nombre: "Naked Put", senal: "buy", color: "#4ADE80", maxBen: +(pP1 * 100 * lotes).toFixed(0), maxRies: -+(sP1 * 100 * lotes - pP1 * 100 * lotes).toFixed(0), break: +(sP1 - pP1).toFixed(2), ratioB_R: +(pP1 / (sP1 - pP1)).toFixed(2), precios: rangoPrecio(S), pnl: pnlNP, desc: `Venta put strike $${sP1}.`, contratos: lotes, prima: pP1 },
-      { tipo: "bcs", nombre: "Bull Call Spread", senal: "buy", color: "#26A69A", maxBen: +((sC2 - sC1 - pC1 + pC2) * 100 * lotes).toFixed(0), maxRies: -+((pC1 - pC2) * 100 * lotes).toFixed(0), break: +(sC1 + pC1 - pC2).toFixed(2), ratioB_R: +((sC2 - sC1 - pC1 + pC2) / (pC1 - pC2)).toFixed(2), precios: rangoPrecio(S), pnl: pnlBCS, desc: `Compra call $${sC1} + venta call $${sC2}.`, contratos: lotes, prima: pC1 - pC2 },
-      { tipo: "bps", nombre: "Bear Put Spread", senal: "sell", color: "#EF5350", maxBen: +((sP1 - sP2 - pP1 + pP2) * 100 * lotes).toFixed(0), maxRies: -+((pP1 - pP2) * 100 * lotes).toFixed(0), break: +(sP1 - pP1 + pP2).toFixed(2), ratioB_R: +((sP1 - sP2 - pP1 + pP2) / (pP1 - pP2)).toFixed(2), precios: rangoPrecio(S), pnl: pnlBPS, desc: `Compra put $${sP1} + venta put $${sP2}.`, contratos: lotes, prima: pP1 - pP2 },
-      { tipo: "ic", nombre: "Iron Condor", senal: "hold", color: "#C5961A", maxBen: +(pIC * 100 * lotes).toFixed(0), maxRies: -+((Math.max(sP1 - sP2, sC2 - sC1) - pIC) * 100 * lotes).toFixed(0), break: `${(sP1 - pIC).toFixed(1)} / ${(sC1 + pIC).toFixed(1)}`, ratioB_R: +(pIC / (Math.max(sP1 - sP2, sC2 - sC1) - pIC)).toFixed(2), precios: rangoPrecio(S), pnl: pnlIC, desc: `Estrategia neutral combinada.`, contratos: lotes, prima: pIC }
-    ];
+    // 4. Llamar al nuevo endpoint de estrategias
+    const respuesta = await fetch(`${API_URL}/api/estrategias/${ticker}`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+    });
+
+    if (!respuesta.ok) throw new Error("Datos no encontrados para este Ticker.");
+
+    const datos = await respuesta.json();
+    estrategiasAPI = datos; // Guardar en memoria para usar al cambiar el horizonte (30, 60, 90 días)
+
+    // 5. Actualizar la Señal Consolidada (Circulo principal)
+    if (circuloSenal) {
+        if (datos.senal_svc === 1 || datos.senal_svc === "BUY") {
+            circuloSenal.className = "w-24 h-24 rounded-full border-4 flex items-center justify-center text-2xl font-black mb-3 signal-buy";
+            circuloSenal.innerText = "BUY";
+        } else {
+            circuloSenal.className = "w-24 h-24 rounded-full border-4 flex items-center justify-center text-2xl font-black mb-3 signal-sell";
+            circuloSenal.innerText = "SELL";
+        }
+    }
+
+    // 6. Actualizar las tarjetas y el gráfico de la estrategia
+    renderizarEstrategia(riesgoSeleccionado, "30"); // Por defecto mostramos a 30 días
+
+  } catch (error) {
+    console.error("Error al cargar la estrategia:", error);
+    alert("Error conectando con la API: " + error.message);
   }
+}
+
+function renderizarEstrategia(nivelRiesgo, diasHorizonte) {
+    if (!estrategiasAPI) return;
+
+    // Buscar la ruta exacta en el JSON que devolvió tu Notebook 2
+    const dataEstrategia = estrategiasAPI.estrategias[nivelRiesgo][diasHorizonte];
+
+    // Llenar datos de texto
+    // (Asegúrate de que estos IDs coincidan con los de tu HTML)
+    document.getElementById('modal-title').innerText = dataEstrategia.estrategia_nombre;
+    document.getElementById('modal-subtitle').innerText = `Horizonte: ${diasHorizonte} días | Riesgo: ${nivelRiesgo}`;
+    
+    // Si usaste la función renderDetalle que estaba en tu código:
+    const htmlDetalles = `
+      <div class="bg-navy-deep p-3 rounded-lg border border-navy-border"><span class="text-[10px] text-ink-300 uppercase">Strikes</span><div class="font-bold text-white">${dataEstrategia.strikes}</div></div>
+      <div class="bg-navy-deep p-3 rounded-lg border border-navy-border"><span class="text-[10px] text-ink-300 uppercase">Prima Neta</span><div class="font-bold text-white">$${dataEstrategia.prima_neta}</div></div>
+      <div class="bg-navy-deep p-3 rounded-lg border border-navy-border"><span class="text-[10px] text-ink-300 uppercase">Max Retorno</span><div class="font-bold text-mint">+$${dataEstrategia.retorno_max}</div></div>
+      <div class="bg-navy-deep p-3 rounded-lg border border-navy-border"><span class="text-[10px] text-ink-300 uppercase">Max Pérdida</span><div class="font-bold text-coral">-$${dataEstrategia.max_perdida}</div></div>
+      <div class="bg-navy-deep p-3 rounded-lg border border-navy-border"><span class="text-[10px] text-ink-300 uppercase">Breakeven</span><div class="font-bold text-white">$${dataEstrategia.breakeven}</div></div>
+      <div class="bg-navy-deep p-3 rounded-lg border border-navy-border"><span class="text-[10px] text-ink-300 uppercase">Ratio B/R</span><div class="font-bold text-white">${dataEstrategia.ratioB_R}x</div></div>
+    `;
+    
+    // Suponiendo que tienes un contenedor para estos detalles en el HTML
+    document.getElementById('modal-details-container').innerHTML = htmlDetalles;
+
+    // Actualizar el Gráfico (Modal Chart)
+    const ctx = document.getElementById("modal-chart").getContext("2d");
+    if(window.modalChart) window.modalChart.destroy();
+    
+    window.modalChart = new Chart(ctx, {
+      type: "line", 
+      data: { 
+          labels: dataEstrategia.grafico.precios.map(p => `$${p}`), 
+          datasets: [{ 
+              label: "P&L", 
+              data: dataEstrategia.grafico.pnl, 
+              borderColor: dataEstrategia.grafico.color, 
+              backgroundColor: dataEstrategia.grafico.color + "33", 
+              borderWidth: 2, 
+              fill: true, 
+              pointRadius: 0 
+          }] 
+      },
+      options: { 
+          responsive: true, maintainAspectRatio: false, 
+          scales: { 
+              x: { grid: { color: '#1F3864' }, ticks: { color: '#6B7A99' } }, 
+              y: { grid: { color: '#1F3864' }, ticks: { color: '#6B7A99' } } 
+          } 
+      }
+    });
+
+    // Mostrar el modal si está oculto
+    const ov = document.getElementById("modal-overlay");
+    if(ov) {
+        ov.classList.remove("hidden"); 
+        ov.classList.add("flex");
+    }
+}
+
+// Escuchar cambios en el selector para recargar los datos
+document.getElementById('nav-ticker').addEventListener('change', fetchEstrategiasData);
+
+// Cargar la primera vez que se abre la página
+document.addEventListener('DOMContentLoaded', fetchEstrategiasData);
 
   function formatUSD(v) { return (v < 0 ? "-" : "+") + "$" + (Math.abs(v) >= 1000 ? (Math.abs(v)/1000).toFixed(1) + "k" : Math.abs(v).toFixed(0)); }
 
