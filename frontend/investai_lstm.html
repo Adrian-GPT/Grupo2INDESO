@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>InvestAI — LSTM Regressor</title>
+
+<!-- Inter desde Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+<style>
+/* =========================================================
+   VARIABLES Y RESET — paleta InvestAI consistente
+   ========================================================= */
+:root {
+  --azul: #1F3864;
+  --azul-hover: #2E5395;
+  --dorado: #C5961A;
+  --dorado-bg: rgba(197,150,26,0.14);
+  --blanco: #FFFFFF;
+  --fondo: #0D1B33;
+  --panel: #122548;
+  --borde: #1F3864;
+  --texto: #E2E8F3;
+  --suave: #6B7A99;
+  --r: 10px;
+  --rl: 14px;
+  --sh-s: 0 1px 4px rgba(0,0,0,.35);
+  --sh-m: 0 4px 18px rgba(0,0,0,.45);
+  --lstm: #3B82F6;
+  --pred-lstm: #EF5350;
+  --pred-arima: #26A69A;
+  --conf-band: rgba(239,83,80,0.10);
+  --buy: #26A69A;
+  --buy-bg: rgba(38,166,154,0.14);
+  --sell: #EF5350;
+  --sell-bg: rgba(239,83,80,0.14);
+  --hold: #F59E0B;
+  --hold-bg: rgba(245,158,11,0.14);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--fondo);
+  color: var(--texto);
+  font-size: 14px;
+  line-height: 1.4;
+  min-height: 100vh;
+}
+
+/* =========================================================
+   OVERLAY DE CARGA GLOBAL
+   ========================================================= */
+#app-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--fondo);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 16px; transition: opacity .5s;
+}
+#app-overlay.oculto { opacity: 0; pointer-events: none; }
+.ov-logo {
+  font-size: 22px; font-weight: 800; color: var(--texto);
+  display: flex; align-items: center; gap: 10px;
+}
+.ov-logo em { color: var(--dorado); font-style: normal; }
+.ov-barra  { width: 220px; height: 4px; background: var(--borde); border-radius: 4px; overflow: hidden; }
+.ov-progreso {
+  height: 100%;
+  background: linear-gradient(90deg, var(--azul), var(--dorado));
+  border-radius: 4px;
+  animation: progreso 2.4s ease-in-out forwards;
+}
+@keyframes progreso { from { width: 0; } to { width: 100%; } }
+.ov-texto { font-size: 12px; color: var(--suave); letter-spacing: .4px; }
+
+/* =========================================================
+   NAVBAR — idéntico a los módulos previos
+   ========================================================= */
+.navbar {
+  background: var(--azul); color: var(--blanco);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 22px; height: 52px;
+  box-shadow: 0 2px 14px rgba(0,0,0,.20);
+  position: sticky; top: 0; z-index: 200;
+}
+.nav-brand {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 800; font-size: 17px; letter-spacing: -.3px;
+}
+.nav-brand em { color: var(--dorado); font-style: normal; }
+.nav-badge {
+  background: rgba(197,150,26,.2); border: 1px solid rgba(197,150,26,.5);
+  color: var(--dorado); font-size: 10px; font-weight: 700;
+  padding: 2px 7px; border-radius: 20px; letter-spacing: .6px;
+}
+.nav-r { display: flex; align-items: center; gap: 18px; }
+.live-ind {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; color: rgba(255,255,255,.72);
+}
+.live-ind::before {
+  content:''; width:8px; height:8px; border-radius:50%; background:#4ADE80;
+  box-shadow: 0 0 0 2px rgba(74,222,128,.35);
+  animation: pulso 1.7s ease-in-out infinite;
+}
+@keyframes pulso {
+  0%,100% { box-shadow: 0 0 0 2px rgba(74,222,128,.35); }
+  50%      { box-shadow: 0 0 0 6px rgba(74,222,128,.0); }
+}
+.reloj { font-size:12px; color:rgba(255,255,255,.55); font-variant-numeric: tabular-nums; }
+
+/* =========================================================
+   LAYOUT PRINCIPAL — columna única ancha + lateral
+   ========================================================= */
+.main {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 14px;
+  padding: 14px 18px 24px;
+}
+.col-g { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.col-p { display: flex; flex-direction: column; gap: 12px; }
+
+/* =========================================================
+   TARJETAS GENÉRICAS
+   ========================================================= */
+.pcard {
+  background: var(--panel); border: 1px solid var(--borde);
+  border-radius: var(--rl); overflow: hidden; box-shadow: var(--sh-s);
+}
+.pcard-tit {
+  background: var(--azul); color: var(--blanco);
+  font-size: 11px; font-weight: 700; letter-spacing: .6px;
+  text-transform: uppercase; padding: 9px 14px;
+}
+
+/* =========================================================
+   BARRA DE CONTROLES — ticker + slider horizonte
+   ========================================================= */
+.controles {
+  background: var(--panel); border: 1px solid var(--borde);
+  border-radius: var(--rl); padding: 12px 16px;
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  box-shadow: var(--sh-s);
+}
+.ctrl-g { display: flex; flex-direction: column; gap: 4px; }
+.ctrl-lbl {
+  font-size: 10px; font-weight: 700; color: var(--suave);
+  letter-spacing: .5px; text-transform: uppercase;
+}
+.ctrl-sel {
+  border: 1.5px solid var(--borde); border-radius: 8px;
+  padding: 6px 28px 6px 10px;
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  color: var(--texto); background: var(--fondo);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%231F3864' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center;
+  appearance: none; cursor: pointer; outline: none;
+  transition: border-color .2s; min-width: 150px;
+}
+.ctrl-sel:focus { border-color: var(--texto); box-shadow: 0 0 0 3px rgba(31,56,100,.10); }
+
+.sep { width:1px; height:40px; background:var(--borde); flex-shrink:0; }
+
+/* Slider de horizonte de predicción */
+.slider-wrap {
+  display: flex; flex-direction: column; gap: 6px; min-width: 200px;
+}
+.slider-row { display: flex; align-items: center; gap: 12px; }
+.slider-val {
+  font-size: 18px; font-weight: 800; color: var(--texto);
+  font-variant-numeric: tabular-nums; min-width: 44px;
+}
+.slider-unit { font-size: 11px; color: var(--suave); font-weight: 500; }
+
+input[type="range"].horizonte {
+  -webkit-appearance: none;
+  width: 100%; height: 5px;
+  border-radius: 5px;
+  background: var(--borde);
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"].horizonte::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--azul);
+  border: 3px solid var(--blanco);
+  box-shadow: 0 1px 6px rgba(31,56,100,.30);
+  transition: transform .15s;
+}
+input[type="range"].horizonte::-webkit-slider-thumb:hover { transform: scale(1.15); }
+input[type="range"].horizonte::-moz-range-thumb {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--azul); border: 3px solid var(--blanco);
+  box-shadow: 0 1px 6px rgba(31,56,100,.30);
+}
+
+/* Marcas de referencia del slider */
+.slider-marks {
+  display: flex; justify-content: space-between;
+  font-size: 10px; color: var(--suave); font-weight: 600;
+  padding: 0 2px;
+}
+
+/* Leyenda de líneas */
+.leyenda-lineas {
+  display: flex; gap: 18px; align-items: center;
+  margin-left: auto; flex-wrap: wrap;
+}
+.ley-item { display: flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 600; }
+.ley-line {
+  width: 22px; height: 3px; border-radius: 2px;
+  flex-shrink: 0;
+}
+.ley-line.dashed { background: repeating-linear-gradient(90deg, currentColor 0, currentColor 5px, transparent 5px, transparent 9px); }
+.ley-real  { color: var(--texto); }
+.ley-lstm  { color: var(--pred-lstm); }
+.ley-arima { color: var(--pred-arima); }
+
+/* =========================================================
+   TARJETA DEL GRÁFICO PRINCIPAL
+   ========================================================= */
+.chart-card {
+  background: var(--panel); border: 1px solid var(--borde);
+  border-radius: var(--rl); overflow: hidden; box-shadow: var(--sh-m);
+  position: relative;
+}
+.chart-hdr {
+  padding: 13px 16px 11px; border-bottom: 1px solid var(--borde);
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.hdr-ticker { font-size: 19px; font-weight: 800; color: var(--texto); letter-spacing:-.4px; }
+.hdr-sub    { font-size: 12px; color: var(--suave); font-weight: 500; }
+
+/* Chip de horizonte en el header */
+.hdr-horizonte {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 7px;
+  background: var(--dorado-bg); border: 1.5px solid var(--dorado);
+  border-radius: 20px; padding: 4px 12px;
+  font-size: 12px; font-weight: 700; color: var(--dorado);
+}
+
+/* Spinner de recarga interna */
+.chart-loader {
+  position: absolute; inset: 0; z-index: 10;
+  background: rgba(255,255,255,.82);
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--rl); transition: opacity .3s;
+}
+.chart-loader.oculto { opacity:0; pointer-events:none; }
+.ring {
+  width:34px; height:34px;
+  border:3px solid var(--borde); border-top-color: var(--texto);
+  border-radius:50%; animation: giro .7s linear infinite;
+}
+@keyframes giro { to { transform: rotate(360deg); } }
+
+/* Franja informativa debajo del header */
+.chart-info-bar {
+  display: flex; gap: 20px; align-items: center; flex-wrap: wrap;
+  padding: 8px 16px; background: var(--fondo);
+  border-bottom: 1px solid var(--borde);
+  font-size: 11.5px;
+}
+.ci-item { display: flex; align-items: center; gap: 6px; }
+.ci-dot   { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.ci-lbl   { color: var(--suave); font-weight: 500; }
+.ci-val   { font-weight: 700; color: var(--texto); font-variant-numeric: tabular-nums; }
+
+#plot-lstm { width:100%; height:460px; }
+
+/* =========================================================
+   MÉTRICAS — 4 cards en fila
+   ========================================================= */
+.metricas-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+}
+.met-card {
+  background: var(--panel); border: 1px solid var(--borde);
+  border-radius: var(--rl); padding: 14px 14px 12px;
+  box-shadow: var(--sh-s); position: relative; overflow: hidden;
+}
+.met-card::before {
+  content:''; position: absolute; top:0; left:0; right:0; height:3px;
+}
+.met-card.rmsd::before  { background: var(--pred-lstm);  }
+.met-card.rmspp::before { background: var(--dorado);     }
+.met-card.mae::before   { background: var(--pred-arima); }
+.met-card.r2::before    { background: var(--azul);       }
+
+.met-lbl { font-size: 10px; font-weight:700; color:var(--suave); text-transform:uppercase; letter-spacing:.4px; margin-bottom:5px; }
+.met-val { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; line-height:1; }
+.met-val.rmsd  { color: var(--pred-lstm);  }
+.met-val.rmspp { color: var(--dorado);     }
+.met-val.mae   { color: var(--pred-arima); }
+.met-val.r2    { color: var(--texto);       }
+.met-desc { font-size: 10.5px; color: var(--suave); margin-top: 6px; line-height: 1.4; }
+.met-bar  { height:4px; border-radius:4px; background:var(--borde); margin-top:8px; overflow:hidden; }
+.met-fill { height:100%; border-radius:4px; transition: width 1s ease; }
+
+/* =========================================================
+   PANEL DERECHO — parámetros del modelo
+   ========================================================= */
+.params-body { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.param-item  {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 12px; border-radius: 9px;
+  background: var(--fondo); border: 1px solid var(--borde);
+}
+.param-icon { font-size: 16px; flex-shrink:0; margin-top:1px; }
+.param-info { flex:1; min-width:0; }
+.param-lbl  { font-size: 10px; font-weight:700; color:var(--suave); text-transform:uppercase; letter-spacing:.4px; margin-bottom:2px; }
+.param-val  { font-size: 15px; font-weight:800; color: var(--texto); font-family:'Courier New',monospace; }
+.param-hint { font-size: 10.5px; color:var(--suave); margin-top:2px; line-height:1.35; }
+
+/* =========================================================
+   ARQUITECTURA DEL MODELO
+   ========================================================= */
+.arq-body { padding: 14px; }
+.arq-layer {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-radius: 8px;
+  background: var(--fondo); border: 1px solid var(--borde);
+  margin-bottom: 6px; position: relative;
+}
+.arq-layer:last-child { margin-bottom: 0; }
+.arq-badge {
+  font-size: 9.5px; font-weight:700; letter-spacing:.4px;
+  padding: 2px 8px; border-radius:20px;
+  white-space: nowrap; flex-shrink:0;
+}
+.arq-badge.lstm    { background: rgba(31,56,100,.12); color: var(--texto);      }
+.arq-badge.drop    { background: rgba(239,83,80,.12); color: var(--pred-lstm); }
+.arq-badge.dense   { background: rgba(38,166,154,.12);color: var(--pred-arima);}
+.arq-badge.output  { background: var(--dorado-bg);    color: var(--dorado);    }
+.arq-name  { font-size: 12px; font-weight: 700; color: var(--texto); }
+.arq-param { font-size: 10.5px; color: var(--suave); margin-top:1px; }
+
+/* Flecha conectora */
+.arq-arrow {
+  text-align: center; font-size: 12px; color: var(--suave);
+  margin: -2px 0 4px; height: 14px;
+}
+
+/* =========================================================
+   PREDICCIÓN FUTURA — tabla de días clave
+   ========================================================= */
+.forecast-body { padding: 0; }
+.fc-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px; border-bottom: 1px solid var(--borde);
+  font-size: 12px;
+}
+.fc-row:last-child { border-bottom: none; }
+.fc-row:hover { background: var(--fondo); }
+.fc-dia    { font-weight:700; color:var(--suave); width:36px; flex-shrink:0; }
+.fc-fecha  { color:var(--suave); font-size:11px; flex:1; }
+.fc-lstm   { font-weight:800; color:var(--pred-lstm);  font-variant-numeric:tabular-nums; }
+.fc-arima  { font-weight:800; color:var(--pred-arima); font-variant-numeric:tabular-nums; }
+.fc-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 14px; background: var(--fondo);
+  border-bottom: 1px solid var(--borde);
+  font-size: 10px; font-weight:700; color:var(--suave); text-transform:uppercase; letter-spacing:.4px;
+}
+.fc-header .fc-dia   { color:var(--suave); }
+.fc-header .fc-lstm  { color:var(--pred-lstm);  }
+.fc-header .fc-arima { color:var(--pred-arima); }
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+@media (max-width: 960px) {
+  .main { grid-template-columns: 1fr; }
+  .metricas-row { grid-template-columns: repeat(2,1fr); }
+  #plot-lstm { height: 380px; }
+}
+@media (max-width: 560px) {
+  .metricas-row { grid-template-columns: repeat(2,1fr); }
+  #plot-lstm { height: 300px; }
+  .controles { gap:12px; }
+  .leyenda-lineas { margin-left:0; }
+}
+</style>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          navy: { deep: '#0A1428', base: '#0D1B33', card: '#122548', border: '#1F3864' },
+          teal: '#26A69A', mint: '#4ADE80', gold: '#C5961A', sky: '#3B82F6', coral: '#EF5350',
+          ink: { 100: '#E2E8F3', 300: '#9FB0CE', 500: '#6B7A99' }
+        },
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+      }
+    }
+  };
+</script>
+<script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+<div class="w-full bg-navy-deep border-b border-navy-border/60 sticky top-0 z-[999]">
+  <div class="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3 overflow-x-auto custom-scroll">
+    <a href="home.html" class="flex items-center gap-2 shrink-0 mr-1">
+      <svg width="24" height="24" viewBox="0 0 44 44" class="shrink-0" role="img" aria-label="Logo InvestAI">
+        <rect width="44" height="44" rx="12" fill="#122548"/>
+        <line x1="14" y1="10" x2="14" y2="34" stroke="#26A69A" stroke-width="2"/>
+        <rect x="10" y="16" width="8" height="10" rx="1.5" fill="#26A69A"/>
+        <line x1="22" y1="6" x2="22" y2="30" stroke="#4ADE80" stroke-width="2"/>
+        <rect x="18" y="13" width="8" height="11" rx="1.5" fill="#4ADE80"/>
+        <line x1="30" y1="14" x2="30" y2="38" stroke="#C5961A" stroke-width="2"/>
+        <rect x="26" y="20" width="8" height="9" rx="1.5" fill="#C5961A"/>
+      </svg>
+      <span class="font-extrabold text-white text-sm tracking-tight whitespace-nowrap">InvestAI</span>
+    </a>
+    <nav class="flex items-center gap-1.5 flex-nowrap">
+      <a href="home.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="home" class="w-3.5 h-3.5"></i>Portal</a>
+      <a href="modulo_mercado.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="candlestick-chart" class="w-3.5 h-3.5"></i>Dashboard Mercado</a>
+      <a href="modulo_svc.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="shield-check" class="w-3.5 h-3.5"></i>Clasificador SVC</a>
+      <a href="investai_modelos_ia.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="cpu" class="w-3.5 h-3.5"></i>Modelos de IA</a>
+      <a href="investai_lstm.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors bg-teal text-navy-deep"><i data-lucide="trending-up" class="w-3.5 h-3.5"></i>LSTM Regressor</a>
+      <a href="investai_nlp.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="newspaper" class="w-3.5 h-3.5"></i>NLP Noticias</a>
+      <a href="investai_estrategias.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="target" class="w-3.5 h-3.5"></i>Estrategias</a>
+      <a href="investai_portafolio.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="briefcase" class="w-3.5 h-3.5"></i>Portafolio</a>
+      <a href="investai_reportes_backtesting.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="bar-chart-2" class="w-3.5 h-3.5"></i>Backtesting</a>
+      <a href="investai_dashboard_completo.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i>Dashboard Resultados</a>
+      <a href="investai_broker.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="send" class="w-3.5 h-3.5"></i>Envio a Broker</a>
+    </nav>
+  </div>
+</div>
+<script>window.addEventListener('DOMContentLoaded', function(){ if (window.lucide) lucide.createIcons(); });</script>
+
+
+<!-- ============================================================
+  OVERLAY DE CARGA GLOBAL
+============================================================ -->
+<div id="app-overlay">
+  <div class="ov-logo">
+    <svg width="32" height="32" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+      <rect width="40" height="40" rx="9" fill="#C5961A"/>
+      <rect x="9"  y="10" width="4" height="20" rx="2" fill="white" opacity=".3"/>
+      <rect x="9"  y="15" width="4" height="10" rx="1.5" fill="white"/>
+      <rect x="18" y="6"  width="4" height="28" rx="2" fill="white" opacity=".3"/>
+      <rect x="18" y="11" width="4" height="14" rx="1.5" fill="#1F3864"/>
+      <rect x="27" y="12" width="4" height="18" rx="2" fill="white" opacity=".3"/>
+      <rect x="27" y="17" width="4" height="8"  rx="1.5" fill="white"/>
+    </svg>
+    Invest<em>AI</em>
+  </div>
+  <div class="ov-barra"><div class="ov-progreso"></div></div>
+  <div class="ov-texto">Inicializando LSTM Regressor · TensorFlow/Keras…</div>
+</div>
+
+<!-- ============================================================
+  NAVBAR
+============================================================ -->
+<nav class="navbar">
+  <div class="nav-brand">
+    <svg width="24" height="24" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+      <rect width="40" height="40" rx="9" fill="#C5961A"/>
+      <rect x="9"  y="10" width="4" height="20" rx="2" fill="white" opacity=".3"/>
+      <rect x="9"  y="15" width="4" height="10" rx="1.5" fill="white"/>
+      <rect x="18" y="6"  width="4" height="28" rx="2" fill="white" opacity=".3"/>
+      <rect x="18" y="11" width="4" height="14" rx="1.5" fill="#1F3864"/>
+      <rect x="27" y="12" width="4" height="18" rx="2" fill="white" opacity=".3"/>
+      <rect x="27" y="17" width="4" height="8"  rx="1.5" fill="white"/>
+    </svg>
+    Invest<em>AI</em>
+    <span class="nav-badge">LSTM · REGRESIÓN</span>
+  </div>
+  <div class="nav-r">
+    <div class="live-ind">Modelo en producción</div>
+    <div class="reloj" id="reloj">--:--:--</div>
+  </div>
+</nav>
+
+<!-- ============================================================
+  CONTENIDO PRINCIPAL
+============================================================ -->
+<div class="main">
+
+  <!-- ════════════════════════════════════════════
+       COLUMNA IZQUIERDA — Controles + Gráfico + Métricas
+  ════════════════════════════════════════════ -->
+  <div class="col-g">
+
+    <!-- Controles: ticker + slider horizonte + leyenda -->
+    <div class="controles">
+
+      <!-- Selector de activo -->
+      <div class="ctrl-g">
+        <span class="ctrl-lbl">Activo</span>
+        <select class="ctrl-sel" id="sel-ticker" onchange="cambiarTicker(this.value)" aria-label="Seleccionar ticker">
+          <option value="AAPL" selected>AAPL — Apple</option>
+          <option value="MSFT">MSFT — Microsoft</option>
+          <option value="GOOGL">GOOGL — Alphabet</option>
+          <option value="TSLA">TSLA — Tesla</option>
+          <option value="NVDA">NVDA — NVIDIA</option>
+          <option value="BTC-USD">BTC-USD — Bitcoin</option>
+          <option value="ETH-USD">ETH-USD — Ethereum</option>
+        </select>
+      </div>
+
+      <div class="sep"></div>
+
+      <!-- Slider de horizonte de predicción -->
+      <div class="ctrl-g slider-wrap">
+        <span class="ctrl-lbl">Horizonte de predicción</span>
+        <div class="slider-row">
+          <span class="slider-val" id="slider-lbl">30</span>
+          <span class="slider-unit">días</span>
+        </div>
+        <input type="range" class="horizonte" id="slider-horizonte"
+               min="0" max="3" step="1" value="2"
+               oninput="cambiarHorizonte(this.value)"
+               aria-label="Horizonte de predicción" />
+        <div class="slider-marks">
+          <span>7d</span><span>14d</span><span>30d</span><span>60d</span>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <!-- Leyenda de líneas -->
+      <div class="leyenda-lineas">
+        <div class="ley-item ley-real">
+          <div class="ley-line" style="background:var(--lstm)"></div>
+          Precios reales
+        </div>
+        <div class="ley-item ley-lstm">
+          <div class="ley-line" style="background:var(--pred-lstm)"></div>
+          LSTM Regressor
+        </div>
+        <div class="ley-item ley-arima">
+          <div class="ley-line" style="background:var(--pred-arima)"></div>
+          ARIMA-LSTM
+        </div>
+      </div>
+    </div><!-- /controles -->
+
+    <!-- Tarjeta del gráfico -->
+    <div class="chart-card">
+      <div class="chart-loader" id="chart-loader">
+        <div class="ring"></div>
+      </div>
+
+      <!-- Header -->
+      <div class="chart-hdr">
+        <span class="hdr-ticker" id="hdr-ticker">AAPL</span>
+        <span class="hdr-sub">Apple Inc. · NASDAQ · USD</span>
+        <div class="hdr-horizonte" id="hdr-horizonte">
+          ⏱ Predicción: <span id="hdr-horiz-val">30 días</span>
+        </div>
+      </div>
+
+      <!-- Barra informativa: último precio + RMSE + fecha -->
+      <div class="chart-info-bar">
+        <div class="ci-item">
+          <div class="ci-dot" style="background:var(--lstm)"></div>
+          <span class="ci-lbl">Último real</span>
+          <span class="ci-val" id="ci-real">$—</span>
+        </div>
+        <div class="ci-item">
+          <div class="ci-dot" style="background:var(--pred-lstm)"></div>
+          <span class="ci-lbl">LSTM día +1</span>
+          <span class="ci-val" id="ci-lstm">$—</span>
+        </div>
+        <div class="ci-item">
+          <div class="ci-dot" style="background:var(--pred-arima)"></div>
+          <span class="ci-lbl">ARIMA-LSTM día +1</span>
+          <span class="ci-val" id="ci-arima">$—</span>
+        </div>
+        <div class="ci-item" style="margin-left:auto;">
+          <span class="ci-lbl">Ventana de entrenamiento</span>
+          <span class="ci-val">60 días</span>
+        </div>
+      </div>
+
+      <!-- El gráfico Plotly se inyecta aquí -->
+      <div id="plot-lstm"></div>
+    </div><!-- /chart-card -->
+
+    <!-- Métricas del modelo — 4 tarjetas en fila -->
+    <div class="metricas-row" id="metricas-row">
+      <!-- Generadas por JS -->
+    </div>
+
+    <!-- Tabla de predicciones futuras (días clave) -->
+    <div class="pcard">
+      <div class="pcard-tit">📅 Tabla de Pronóstico — Precios Estimados por Modelo</div>
+      <div class="forecast-body" id="forecast-body">
+        <!-- Generada por JS -->
+      </div>
+    </div>
+
+  </div><!-- /col-g -->
+
+  <!-- ════════════════════════════════════════════
+       COLUMNA DERECHA — Parámetros + Arquitectura
+  ════════════════════════════════════════════ -->
+  <div class="col-p">
+
+    <!-- Parámetros técnicos del modelo LSTM -->
+    <div class="pcard">
+      <div class="pcard-tit">⚙️ Parámetros del Modelo LSTM</div>
+      <div class="params-body">
+
+        <div class="param-item">
+          <span class="param-icon">🔄</span>
+          <div class="param-info">
+            <div class="param-lbl">Épocas</div>
+            <div class="param-val" id="p-epocas">100</div>
+            <div class="param-hint">Iteraciones completas sobre el conjunto de entrenamiento con early stopping.</div>
+          </div>
+        </div>
+
+        <div class="param-item">
+          <span class="param-icon">💧</span>
+          <div class="param-info">
+            <div class="param-lbl">Dropout</div>
+            <div class="param-val" id="p-dropout">0.20</div>
+            <div class="param-hint">Regularización por descarte aleatorio de neuronas entre capas LSTM.</div>
+          </div>
+        </div>
+
+        <div class="param-item">
+          <span class="param-icon">📦</span>
+          <div class="param-info">
+            <div class="param-lbl">Batch Size</div>
+            <div class="param-val" id="p-batch">32</div>
+            <div class="param-hint">Muestras procesadas por paso de gradiente descendente.</div>
+          </div>
+        </div>
+
+        <div class="param-item">
+          <span class="param-icon">📏</span>
+          <div class="param-info">
+            <div class="param-lbl">Ventana Temporal</div>
+            <div class="param-val" id="p-ventana">60 días</div>
+            <div class="param-hint">Look-back: días históricos usados como input del LSTM.</div>
+          </div>
+        </div>
+
+        <div class="param-item">
+          <span class="param-icon">📉</span>
+          <div class="param-info">
+            <div class="param-lbl">Learning Rate</div>
+            <div class="param-val" id="p-lr">0.001</div>
+            <div class="param-hint">Adam optimizer · β₁=0.9, β₂=0.999, ε=1e-7.</div>
+          </div>
+        </div>
+
+        <div class="param-item">
+          <span class="param-icon">📊</span>
+          <div class="param-info">
+            <div class="param-lbl">Train / Val / Test</div>
+            <div class="param-val" id="p-split">70/15/15</div>
+            <div class="param-hint">Split temporal del dataset para evitar data leakage.</div>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- /parámetros -->
+
+    <!-- Arquitectura del modelo -->
+    <div class="pcard">
+      <div class="pcard-tit">🧠 Arquitectura LSTM Regressor</div>
+      <div class="arq-body">
+
+        <div class="arq-layer">
+          <span class="arq-badge lstm">LSTM</span>
+          <div>
+            <div class="arq-name">LSTM — 64 unidades</div>
+            <div class="arq-param">return_sequences=True · input_shape=(60,1)</div>
+          </div>
+        </div>
+        <div class="arq-arrow">↓</div>
+
+        <div class="arq-layer">
+          <span class="arq-badge drop">DROPOUT</span>
+          <div>
+            <div class="arq-name">Dropout — 20%</div>
+            <div class="arq-param">rate=0.20 · regularización</div>
+          </div>
+        </div>
+        <div class="arq-arrow">↓</div>
+
+        <div class="arq-layer">
+          <span class="arq-badge lstm">LSTM</span>
+          <div>
+            <div class="arq-name">LSTM — 32 unidades</div>
+            <div class="arq-param">return_sequences=False</div>
+          </div>
+        </div>
+        <div class="arq-arrow">↓</div>
+
+        <div class="arq-layer">
+          <span class="arq-badge drop">DROPOUT</span>
+          <div>
+            <div class="arq-name">Dropout — 20%</div>
+            <div class="arq-param">rate=0.20 · regularización</div>
+          </div>
+        </div>
+        <div class="arq-arrow">↓</div>
+
+        <div class="arq-layer">
+          <span class="arq-badge dense">DENSE</span>
+          <div>
+            <div class="arq-name">Dense — 16 neuronas</div>
+            <div class="arq-param">activation='relu'</div>
+          </div>
+        </div>
+        <div class="arq-arrow">↓</div>
+
+        <div class="arq-layer">
+          <span class="arq-badge output">OUTPUT</span>
+          <div>
+            <div class="arq-name">Dense — 1 neurona</div>
+            <div class="arq-param">activation='linear' · precio USD</div>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- /arquitectura -->
+
+  </div><!-- /col-p -->
+
+</div><!-- /main -->
+
+<!-- ============================================================
+  PLOTLY desde CDN — antes del script de la app
+============================================================ -->
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+<!-- ============================================================
+  LÓGICA DE LA APLICACIÓN
+============================================================ -->
+<script>
+/* =================================================================
+   CONFIGURACIÓN DE ACTIVOS — mismos parámetros que los módulos previos
+   ================================================================= */
+const ACTIVOS = {
+  'AAPL':    { nombre:'Apple Inc.',      base:171,   vol:0.015, trend:0.0003 },
+  'MSFT':    { nombre:'Microsoft Corp.', base:378,   vol:0.013, trend:0.0004 },
+  'GOOGL':   { nombre:'Alphabet Inc.',   base:152,   vol:0.016, trend:0.0002 },
+  'TSLA':    { nombre:'Tesla Inc.',      base:245,   vol:0.030, trend:0.0001 },
+  'NVDA':    { nombre:'NVIDIA Corp.',    base:875,   vol:0.025, trend:0.0006 },
+  'BTC-USD': { nombre:'Bitcoin',         base:67000, vol:0.035, trend:0.0002 },
+  'ETH-USD': { nombre:'Ethereum',        base:3500,  vol:0.040, trend:0.0001 },
+};
+
+/* Opciones del slider → días de predicción */
+const HORIZONTES = [7, 14, 30, 60];
+
+/* Estado global */
+const E = {
+  ticker:    'AAPL',
+  horizonte:  30,       // días de predicción futura
+  sliderIdx:  2,        // índice en HORIZONTES (30d por defecto)
+  graficado:  false,
+  cache:      {},
+};
+
+/* =================================================================
+   PRNG DETERMINISTA (LCG) — semilla coherente con módulos previos
+   ================================================================= */
+function makePRNG(seed) {
+  let s = seed;
+  return () => {
+    s = ((s * 1664525 + 1013904223) | 0) >>> 0;
+    return s / 0xFFFFFFFF;
+  };
+}
+function randn(rand) {
+  const u = Math.max(1e-10, rand()), v = rand();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+/* =================================================================
+   GENERADOR DE PRECIOS HISTÓRICOS SIMULADOS (AAPL-style)
+   ---------------------------------------------------------------
+   Genera 365 días de precios con tendencia alcista suave y ciclos
+   realistas, como los que vería el LSTM durante el entrenamiento.
+   ================================================================= */
+function generarHistorico(ticker) {
+  const cfg  = ACTIVOS[ticker];
+  const seed = ticker.split('').reduce((a,c) => (a * 31 + c.charCodeAt(0)) | 0, 1);
+  const rand = makePRNG(seed);
+
+  const fechas = [], precios = [];
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  let precio = cfg.base;
+
+  // Generar 365 días hacia atrás (ignorando fines de semana para acciones)
+  for (let i = 365; i >= 0; i--) {
+    const d = new Date(hoy); d.setDate(hoy.getDate() - i);
+    // Acciones: omitir sábado(6) y domingo(0)
+    if (cfg.base < 10000 && (d.getDay() === 0 || d.getDay() === 6)) continue;
+
+    // Retorno diario: drift + ruido normal + componente cíclica (estacionalidad)
+    const ciclo   = 0.0005 * Math.sin(i / 30 * Math.PI); // ciclo ~mensual
+    const retorno = cfg.trend + cfg.vol * randn(rand) + ciclo;
+    precio = Math.max(precio * Math.exp(retorno), cfg.base * 0.5);
+
+    fechas.push(d.toISOString().split('T')[0]);
+    precios.push(+precio.toFixed(2));
+  }
+  return { fechas, precios };
+}
+
+/* =================================================================
+   SIMULADOR DE PREDICCIÓN LSTM
+   ---------------------------------------------------------------
+   Imita el comportamiento del LSTM Regressor entrenado:
+   - La predicción sigue al precio real con un retardo (lag) típico
+     de las RNNs, con suavizado exponencial sobre la ventana.
+   - El error aumenta con el horizonte de predicción.
+   - Incluye sesgo alcista leve (el LSTM aprende la tendencia).
+   ================================================================= */
+function simularPrediccionLSTM(precios, rand) {
+  const N = precios.length;
+  const VENTANA = 60;
+  const pred = new Array(N).fill(null);
+
+  // Los primeros VENTANA días no tienen predicción (período de calentamiento)
+  for (let i = VENTANA; i < N; i++) {
+    // Media ponderada exponencial de la ventana → imita la "memoria" LSTM
+    let suma = 0, pesos = 0;
+    for (let k = 0; k < VENTANA; k++) {
+      const peso = Math.exp(-0.04 * (VENTANA - 1 - k)); // más peso a los recientes
+      suma  += precios[i - VENTANA + k] * peso;
+      pesos += peso;
+    }
+    const mediaVentana = suma / pesos;
+
+    // Predicción = media ponderada + sesgo alcista + ruido calibrado
+    const bias  = precios[i] * ACTIVOS[E.ticker].trend * 2;
+    const ruido = precios[i] * ACTIVOS[E.ticker].vol * 0.25 * randn(rand);
+    pred[i] = +(mediaVentana * 0.55 + precios[i] * 0.40 + bias + ruido).toFixed(2);
+  }
+  return pred;
+}
+
+/* =================================================================
+   SIMULADOR DE PREDICCIÓN ARIMA-LSTM (ensamblado)
+   ---------------------------------------------------------------
+   El ensamblado ARIMA + LSTM reduce el error al combinar la
+   componente lineal (ARIMA captura la tendencia y estacionalidad)
+   con la componente no lineal (LSTM captura patrones complejos).
+   El resultado es ligeramente más suave y más cercano a la realidad.
+   ================================================================= */
+function simularPrediccionARIMA(precios, predLSTM, rand) {
+  const N = precios.length;
+  const pred = new Array(N).fill(null);
+
+  for (let i = 1; i < N; i++) {
+    if (predLSTM[i] === null) continue;
+
+    // Componente ARIMA: media móvil simple de 5 días (AR(1) simplificado)
+    let arima = 0;
+    const w = Math.min(5, i);
+    for (let k = 0; k < w; k++) arima += precios[i - k];
+    arima = (arima / w) + precios[i] * ACTIVOS[E.ticker].trend;
+
+    // Ensamblado 40% ARIMA + 60% LSTM + ruido menor (el ensemble es más estable)
+    const ruido = precios[i] * ACTIVOS[E.ticker].vol * 0.12 * randn(rand);
+    pred[i] = +(arima * 0.40 + predLSTM[i] * 0.60 + ruido).toFixed(2);
+  }
+  return pred;
+}
+
+/* =================================================================
+   PREDICCIÓN FUTURA — proyección N días hacia adelante
+   ---------------------------------------------------------------
+   Extiende el modelo más allá del último precio conocido usando
+   un proceso autorregresivo con incertidumbre creciente (la banda
+   de confianza se ensancha con el horizonte, como en predicciones reales).
+   ================================================================= */
+function generarFuturo(precios, fechas, diasFuturo) {
+  const cfg    = ACTIVOS[E.ticker];
+  const seed2  = E.ticker.split('').reduce((a,c) => (a * 31 + c.charCodeAt(0)) | 0, 77);
+  const rand   = makePRNG(seed2);
+
+  const precioBase = precios[precios.length - 1];
+  const ultimaFecha = new Date(fechas[fechas.length - 1]);
+
+  // Tendencia estimada del LSTM sobre el histórico (media de los últimos 30 retornos)
+  const retornos30 = [];
+  for (let i = precios.length - 30; i < precios.length; i++) {
+    retornos30.push((precios[i] - precios[i-1]) / precios[i-1]);
+  }
+  const trendEstimada = retornos30.reduce((a,b) => a+b, 0) / retornos30.length;
+
+  // Generar fechas futuras (omitir fines de semana para acciones)
+  const fechasFut  = [];
+  const lstmFut    = [];
+  const arimaFut   = [];
+  const confSupLSTM  = [];   // banda superior LSTM
+  const confInfLSTM  = [];   // banda inferior LSTM
+  const confSupARIMA = [];
+  const confInfARIMA = [];
+
+  let precioLSTM  = precioBase;
+  let precioARIMA = precioBase;
+  let d = new Date(ultimaFecha);
+
+  for (let i = 0; i < diasFuturo; i++) {
+    d = new Date(d); d.setDate(d.getDate() + 1);
+    if (cfg.base < 10000 && (d.getDay() === 0 || d.getDay() === 6)) {
+      diasFuturo++; continue;  // saltar fin de semana contando días hábiles
+    }
+    if (fechasFut.length >= diasFuturo - (diasFuturo - HORIZONTES[E.sliderIdx])) break;
+
+    const fecha = d.toISOString().split('T')[0];
+    fechasFut.push(fecha);
+
+    // Retorno LSTM: tendencia + ruido creciente con el horizonte
+    const factorIncert = 1 + i * 0.012;  // incertidumbre +1.2% por día
+    const retLSTM  = trendEstimada + cfg.vol * 0.6 * randn(rand) * factorIncert;
+    const retARIMA = trendEstimada * 0.8 + cfg.vol * 0.35 * randn(rand) * factorIncert;
+
+    precioLSTM  = +(precioLSTM  * (1 + retLSTM)).toFixed(2);
+    precioARIMA = +(precioARIMA * (1 + retARIMA)).toFixed(2);
+    lstmFut.push(precioLSTM);
+    arimaFut.push(precioARIMA);
+
+    // Banda de confianza: ±2σ creciente con el horizonte (intervalo 95%)
+    const sigma = cfg.vol * factorIncert;
+    const cLSTM  = precioLSTM  * sigma * 1.96;
+    const cARIMA = precioARIMA * sigma * 1.20;
+    confSupLSTM.push( +(precioLSTM  + cLSTM).toFixed(2));
+    confInfLSTM.push( +(precioLSTM  - cLSTM).toFixed(2));
+    confSupARIMA.push(+(precioARIMA + cARIMA).toFixed(2));
+    confInfARIMA.push(+(precioARIMA - cARIMA).toFixed(2));
+  }
+
+  // Asegurar tamaño consistente
+  const n = Math.min(lstmFut.length, fechasFut.length, HORIZONTES[E.sliderIdx]);
+  return {
+    fechas:    fechasFut.slice(0, n),
+    lstm:      lstmFut.slice(0, n),
+    arima:     arimaFut.slice(0, n),
+    supLSTM:   confSupLSTM.slice(0, n),
+    infLSTM:   confInfLSTM.slice(0, n),
+    supARIMA:  confSupARIMA.slice(0, n),
+    infARIMA:  confInfARIMA.slice(0, n),
+  };
+}
+
+/* =================================================================
+   CALCULAR MÉTRICAS — RMSE (USD y %), MAE, R²
+   ----------------------------------------------------------------
+   Compara predicciones LSTM vs. precios reales en el período de
+   test (último 15% del histórico, sin incluir la zona de predicción).
+   ================================================================= */
+function calcularMetricas(precios, predLSTM) {
+  // Sólo pares donde predLSTM tiene valor
+  const pares = precios
+    .map((p, i) => ({ real:p, pred:predLSTM[i] }))
+    .filter(p => p.pred !== null);
+
+  const n = pares.length;
+  if (n === 0) return { rmsd:0, rmspp:0, mae:0, r2:0 };
+
+  const mediaReal = pares.reduce((s, p) => s + p.real, 0) / n;
+
+  let ssRes = 0, ssTot = 0, sumAbsErr = 0;
+  pares.forEach(({ real, pred }) => {
+    const err = real - pred;
+    ssRes    += err * err;
+    ssTot    += (real - mediaReal) ** 2;
+    sumAbsErr+= Math.abs(err);
+  });
+
+  const rmsd  = Math.sqrt(ssRes / n);
+  const rmspp = (rmsd / mediaReal) * 100;
+  const mae   = sumAbsErr / n;
+  const r2    = Math.max(0, 1 - ssRes / (ssTot + 1e-10));
+
+  return {
+    rmsd:  +rmsd.toFixed(2),
+    rmspp: +rmspp.toFixed(2),
+    mae:   +mae.toFixed(2),
+    r2:    +r2.toFixed(4),
+  };
+}
+
+/* =================================================================
+   RENDERIZADO DEL GRÁFICO PLOTLY
+   ================================================================= */
+function renderGrafico() {
+  mostrarLoader(true);
+  setTimeout(_render, 80);
+}
+
+function _render() {
+  const { ticker, sliderIdx } = E;
+  const diasFuturo = HORIZONTES[sliderIdx];
+
+  // ── Generar (o recuperar del caché) el dataset completo ──
+  if (!E.cache[ticker]) {
+    const seed  = ticker.split('').reduce((a,c) => (a * 31 + c.charCodeAt(0)) | 0, 1);
+    const rand  = makePRNG(seed + 42);
+    const hist  = generarHistorico(ticker);
+    const lstm  = simularPrediccionLSTM(hist.precios, makePRNG(seed + 100));
+    const arima = simularPrediccionARIMA(hist.precios, lstm, makePRNG(seed + 200));
+    const metr  = calcularMetricas(hist.precios, lstm);
+    E.cache[ticker] = { hist, lstm, arima, metr };
+  }
+
+  const { hist, lstm, arima, metr } = E.cache[ticker];
+  const { fechas, precios } = hist;
+  const futuro = generarFuturo(precios, fechas, diasFuturo);
+
+  // ── TRAZA 1: Precios reales (línea azul sólida) ──
+  const tReal = {
+    type:  'scatter', mode: 'lines', name: 'Precio real',
+    x: fechas, y: precios,
+    line: { color:'#1F3864', width:2.2 },
+    hovertemplate: '<b>%{x}</b><br>Real: <b>$%{y:.2f}</b><extra></extra>',
+  };
+
+  // ── TRAZA 2: Predicción LSTM histórica (línea roja discontinua) ──
+  const tLSTM = {
+    type: 'scatter', mode: 'lines', name: 'LSTM Regressor',
+    x: fechas, y: lstm,
+    line: { color:'#EF5350', width:1.8, dash:'dash' },
+    hovertemplate: '<b>%{x}</b><br>LSTM: <b>$%{y:.2f}</b><extra></extra>',
+  };
+
+  // ── TRAZA 3: Predicción ARIMA-LSTM histórica (línea verde discontinua) ──
+  const tARIMA = {
+    type: 'scatter', mode: 'lines', name: 'ARIMA-LSTM',
+    x: fechas, y: arima,
+    line: { color:'#26A69A', width:1.8, dash:'dot' },
+    hovertemplate: '<b>%{x}</b><br>ARIMA-LSTM: <b>$%{y:.2f}</b><extra></extra>',
+  };
+
+  // ── TRAZAS 4 y 5: Predicción futura LSTM + banda de confianza ──
+  // La banda se construye con fillcolor entre la línea superior e inferior
+
+  // Banda superior LSTM (relleno hacia abajo)
+  const tConfSupLSTM = {
+    type: 'scatter', mode: 'lines', name: 'Conf. LSTM +95%',
+    x: futuro.fechas, y: futuro.supLSTM,
+    line: { color:'transparent' },
+    showlegend: false,
+    hoverinfo: 'skip',
+  };
+  // Banda inferior LSTM (cierra el área)
+  const tConfInfLSTM = {
+    type: 'scatter', mode: 'lines', name: 'Banda confianza LSTM (95%)',
+    x: futuro.fechas, y: futuro.infLSTM,
+    line: { color:'transparent' },
+    fill: 'tonexty',
+    fillcolor: 'rgba(239,83,80,0.12)',
+    hoverinfo: 'skip',
+  };
+
+  // Banda superior ARIMA-LSTM
+  const tConfSupARIMA = {
+    type: 'scatter', mode: 'lines', name: 'Conf. ARIMA +95%',
+    x: futuro.fechas, y: futuro.supARIMA,
+    line: { color:'transparent' },
+    showlegend: false,
+    hoverinfo: 'skip',
+  };
+  // Banda inferior ARIMA-LSTM
+  const tConfInfARIMA = {
+    type: 'scatter', mode: 'lines', name: 'Banda confianza ARIMA-LSTM (95%)',
+    x: futuro.fechas, y: futuro.infARIMA,
+    line: { color:'transparent' },
+    fill: 'tonexty',
+    fillcolor: 'rgba(38,166,154,0.10)',
+    hoverinfo: 'skip',
+  };
+
+  // ── TRAZA 6: Proyección futura LSTM (línea roja discontinua) ──
+  // Conectar el último precio real con la proyección
+  const xFutLSTM  = [fechas[fechas.length-1], ...futuro.fechas];
+  const yFutLSTM  = [precios[precios.length-1], ...futuro.lstm];
+  const tFutLSTM  = {
+    type: 'scatter', mode: 'lines', name: 'Pronóstico LSTM',
+    x: xFutLSTM, y: yFutLSTM,
+    line: { color:'#EF5350', width:2.2, dash:'dash' },
+    hovertemplate: '<b>%{x}</b><br>LSTM: <b>$%{y:.2f}</b><extra></extra>',
+  };
+
+  // ── TRAZA 7: Proyección futura ARIMA-LSTM (línea verde) ──
+  const xFutARIMA = [fechas[fechas.length-1], ...futuro.fechas];
+  const yFutARIMA = [precios[precios.length-1], ...futuro.arima];
+  const tFutARIMA = {
+    type: 'scatter', mode: 'lines', name: 'Pronóstico ARIMA-LSTM',
+    x: xFutARIMA, y: yFutARIMA,
+    line: { color:'#26A69A', width:2.2, dash:'dot' },
+    hovertemplate: '<b>%{x}</b><br>ARIMA-LSTM: <b>$%{y:.2f}</b><extra></extra>',
+  };
+
+  // ── LÍNEA VERTICAL — separador histórico / futuro ──
+  const ultimaFechaHist = fechas[fechas.length - 1];
+  const primerFechaFut  = futuro.fechas[0] || ultimaFechaHist;
+
+  // ── LAYOUT ──
+  const layout = {
+    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { family:'Inter,sans-serif', size:11, color:'#E2E8F3' },
+    margin: { l:70, r:18, t:12, b:42 },
+    xaxis: {
+      type: 'date', showgrid: false,
+      tickfont: { size:10, color:'#6B7A99' },
+      linecolor: '#E2E8F3',
+      rangeslider: { visible:true, thickness:0.05, bgcolor:'#1A2E52' },
+    },
+    yaxis: {
+      showgrid: true, gridcolor:'rgba(255,255,255,0.08)', gridwidth:1,
+      tickprefix: '$', tickfont:{ size:10, color:'#6B7A99' },
+      linecolor: '#E2E8F3', zeroline: false, autorange: true,
+    },
+    legend: {
+      orientation:'h', x:0, y:1.02,
+      bgcolor:'transparent', font:{ size:11 },
+    },
+    hovermode: 'x unified',
+    dragmode: 'zoom',
+    template: 'plotly_white',
+    // Franja vertical sombreada para la zona futura
+    shapes: [{
+      type: 'rect',
+      xref: 'x', yref: 'paper',
+      x0: ultimaFechaHist, x1: futuro.fechas[futuro.fechas.length - 1] || ultimaFechaHist,
+      y0: 0, y1: 1,
+      fillcolor: 'rgba(197,150,26,0.04)',
+      line: { color:'rgba(197,150,26,0.30)', width:1.5, dash:'dot' },
+    }],
+    annotations: [{
+      xref: 'x', yref: 'paper',
+      x: ultimaFechaHist,
+      y: 0.97, xanchor:'left',
+      text: `  ⏱ Pronóstico ${diasFuturo}d →`,
+      showarrow: false,
+      font: { size:10, color:'#C5961A', family:'Inter,sans-serif' },
+    }],
+  };
+
+  const config = {
+    responsive: true, displaylogo: false, scrollZoom: true,
+    modeBarButtonsToRemove:['lasso2d','select2d','autoScale2d'],
+    toImageButtonOptions:{ format:'png', filename:`InvestAI_LSTM_${ticker}_${diasFuturo}d` },
+  };
+
+  const trazas = [
+    tReal,
+    tLSTM, tARIMA,
+    tConfSupLSTM, tConfInfLSTM,
+    tConfSupARIMA, tConfInfARIMA,
+    tFutLSTM, tFutARIMA,
+  ];
+
+  const fn = E.graficado ? Plotly.react : Plotly.newPlot;
+  fn('plot-lstm', trazas, layout, config).then(() => {
+    E.graficado = true;
+    mostrarLoader(false);
+    actualizarInfoBar(precios, futuro, metr);
+    renderMetricas(metr, precios);
+    renderForecastTable(futuro, diasFuturo);
+  });
+}
+
+/* =================================================================
+   BARRA INFORMATIVA — último precio + pronóstico día +1
+   ================================================================= */
+function actualizarInfoBar(precios, futuro, metr) {
+  const priceActual = precios[precios.length - 1];
+  document.getElementById('ci-real').textContent  = '$' + priceActual.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  document.getElementById('ci-lstm').textContent  = futuro.lstm[0]  ? '$' + futuro.lstm[0].toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})  : '—';
+  document.getElementById('ci-arima').textContent = futuro.arima[0] ? '$' + futuro.arima[0].toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+}
+
+/* =================================================================
+   MÉTRICAS — 4 tarjetas: RMSE (USD), RMSE (%), MAE, R²
+   ================================================================= */
+function renderMetricas(metr, precios) {
+  // R² como porcentaje de varianza explicada (0..100)
+  const r2pct = +(metr.r2 * 100).toFixed(1);
+
+  const cards = [
+    {
+      cls: 'rmsd',
+      lbl: 'RMSE',
+      val: '$' + metr.rmsd.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2}),
+      valCls: 'rmsd',
+      bar: Math.min(100, metr.rmsd / (ACTIVOS[E.ticker].base * 0.05) * 100),
+      barColor: 'var(--pred-lstm)',
+      desc: 'Error cuadrático medio en dólares sobre el conjunto de prueba.',
+    },
+    {
+      cls: 'rmspp',
+      lbl: 'RMSE (%)',
+      val: metr.rmspp + '%',
+      valCls: 'rmspp',
+      bar: Math.min(100, metr.rmspp * 5),
+      barColor: 'var(--dorado)',
+      desc: 'RMSE relativo al precio medio — mide el error proporcional.',
+    },
+    {
+      cls: 'mae',
+      lbl: 'MAE',
+      val: '$' + metr.mae.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}),
+      valCls: 'mae',
+      bar: Math.min(100, metr.mae / (ACTIVOS[E.ticker].base * 0.05) * 100),
+      barColor: 'var(--pred-arima)',
+      desc: 'Error absoluto medio — menos sensible a outliers que el RMSE.',
+    },
+    {
+      cls: 'r2',
+      lbl: 'R² Score',
+      val: metr.r2.toFixed(4),
+      valCls: 'r2',
+      bar: r2pct,
+      barColor: 'var(--azul)',
+      desc: `Varianza explicada: ${r2pct}% — 1.0 = predicción perfecta.`,
+    },
+  ];
+
+  document.getElementById('metricas-row').innerHTML = cards.map(c => `
+    <div class="met-card ${c.cls}">
+      <div class="met-lbl">${c.lbl}</div>
+      <div class="met-val ${c.valCls}">${c.val}</div>
+      <div class="met-bar">
+        <div class="met-fill" style="width:${c.bar.toFixed(1)}%;background:${c.barColor}"></div>
+      </div>
+      <div class="met-desc">${c.desc}</div>
+    </div>
+  `).join('');
+}
+
+/* =================================================================
+   TABLA DE PRONÓSTICO FUTURO — días clave
+   ================================================================= */
+function renderForecastTable(futuro, diasFuturo) {
+  // Mostrar sólo días representativos (día 1, cada 5 días aprox.)
+  const indices = new Set([0]);
+  [4, 6, 9, 13, 20, 29, 44, 59].forEach(i => { if (i < futuro.fechas.length) indices.add(i); });
+  indices.add(futuro.fechas.length - 1); // último día
+
+  const filas = [...indices].sort((a,b) => a-b).map(i => ({
+    dia:   i + 1,
+    fecha: futuro.fechas[i],
+    lstm:  futuro.lstm[i],
+    arima: futuro.arima[i],
+    supL:  futuro.supLSTM[i],
+    infL:  futuro.infLSTM[i],
+    supA:  futuro.supARIMA[i],
+    infA:  futuro.infARIMA[i],
+  })).filter(f => f.fecha);
+
+  const fmt = v => v ? '$' + v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+
+  document.getElementById('forecast-body').innerHTML = `
+    <div class="fc-header">
+      <span class="fc-dia">Día</span>
+      <span class="fc-fecha" style="flex:1">Fecha</span>
+      <span class="fc-lstm">LSTM (IC 95%)</span>
+      <span class="fc-arima" style="margin-left:auto">ARIMA-LSTM (IC 95%)</span>
+    </div>
+    ${filas.map(f => `
+    <div class="fc-row">
+      <span class="fc-dia">+${f.dia}</span>
+      <span class="fc-fecha">${f.fecha}</span>
+      <span class="fc-lstm">${fmt(f.lstm)}
+        <span style="font-size:10px;color:var(--suave);font-weight:500;">
+          [${fmt(f.infL)} – ${fmt(f.supL)}]
+        </span>
+      </span>
+      <span class="fc-arima" style="margin-left:auto;text-align:right">${fmt(f.arima)}
+        <span style="font-size:10px;color:var(--suave);font-weight:500;">
+          [${fmt(f.infA)} – ${fmt(f.supA)}]
+        </span>
+      </span>
+    </div>`).join('')}
+  `;
+}
+
+/* =================================================================
+   CONTROLES — cambio de ticker y horizonte
+   ================================================================= */
+function cambiarTicker(ticker) {
+  E.ticker = ticker;
+  E.graficado = false;
+  document.getElementById('hdr-ticker').textContent = ticker;
+  renderGrafico();
+}
+
+function cambiarHorizonte(sliderVal) {
+  E.sliderIdx  = parseInt(sliderVal, 10);
+  E.horizonte  = HORIZONTES[E.sliderIdx];
+  document.getElementById('slider-lbl').textContent = E.horizonte;
+  document.getElementById('hdr-horiz-val').textContent = E.horizonte + ' días';
+  // Re-renderizar con el mismo ticker (no regenera histórico, sólo el futuro)
+  renderGrafico();
+}
+
+/* =================================================================
+   UTILIDADES
+   ================================================================= */
+function mostrarLoader(show) {
+  document.getElementById('chart-loader').classList.toggle('oculto', !show);
+}
+function tickReloj() {
+  document.getElementById('reloj').textContent =
+    new Date().toLocaleTimeString('es-PE', { hour12:false });
+}
+
+/* =================================================================
+   PUNTO DE ENTRADA
+   ================================================================= */
+function init() {
+  renderGrafico();
+  tickReloj();
+  setInterval(tickReloj, 1000);
+
+  // Ocultar overlay cuando el gráfico ya esté pintado
+  setTimeout(() => {
+    const ov = document.getElementById('app-overlay');
+    ov.classList.add('oculto');
+    setTimeout(() => ov.remove(), 600);
+  }, 1000);
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+</script>
+
+</body>
+</html>

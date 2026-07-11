@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InvestAI - Envío de Señales al Broker</title>
+<style>
+    /* ===== Variables de paleta financiera profesional ===== */
+        :root {
+        --azul-oscuro: #1F3864;
+        --azul-medio: #2E5395;
+        --dorado: #C5961A;
+        --vino: #C2467A;
+        --blanco: #FFFFFF;
+        --panel-bg: #122548;
+        --gris-claro: #0D1B33;
+        --gris-borde: #1F3864;
+        --verde-ok: #34D399;
+        --rojo-error: #EF5350;
+        --amarillo-paper: #D9A60B;
+        --amarillo: #D9A60B;
+        --negro: #E2E8F3;
+        --texto: #E2E8F3;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+        font-family: 'Calibri', 'Inter', Arial, sans-serif;
+        background-color: var(--gris-claro);
+        color: var(--texto);
+        line-height: 1.5;
+        padding-bottom: 40px;
+    }
+
+    /* ===== Encabezado ===== */
+    header {
+        background-color: var(--negro);
+        color: var(--blanco);
+        padding: 18px 30px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    header .logo {
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: 1px;
+    }
+
+    header .logo span { color: var(--dorado); }
+
+    header .subtitulo {
+        font-size: 0.85rem;
+        opacity: 0.85;
+        margin-top: 2px;
+    }
+
+    /* ===== Indicador de conexión (semáforo) ===== */
+    .estado-conexion {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background-color: rgba(255,255,255,0.08);
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 0.9rem;
+    }
+
+    .semaforo {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        display: inline-block;
+        box-shadow: 0 0 6px rgba(0,0,0,0.4);
+        transition: background-color 0.3s ease;
+    }
+
+    .semaforo.conectado { background-color: #2ECC71; box-shadow: 0 0 8px #2ECC71; }
+    .semaforo.desconectado { background-color: #E74C3C; box-shadow: 0 0 8px #E74C3C; }
+    .semaforo.paper { background-color: #F39C12; box-shadow: 0 0 8px #F39C12; }
+
+    select.selector-modo {
+        background-color: var(--azul-medio);
+        color: var(--blanco);
+        border: 1px solid rgba(255,255,255,0.3);
+        border-radius: 6px;
+        padding: 4px 8px;
+        font-size: 0.85rem;
+        cursor: pointer;
+    }
+
+    /* ===== Alerta de Paper Trading ===== */
+    .alerta-paper {
+        background-color: rgba(197,150,26,0.14);
+        border-left: 6px solid var(--amarillo-paper);
+        color: #E8B836;
+        padding: 12px 24px;
+        margin: 18px 30px 0 30px;
+        border-radius: 6px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.95rem;
+    }
+
+    .alerta-paper.oculto { display: none; }
+
+    /* ===== Contenedor principal en grid ===== */
+    .contenedor {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 24px;
+        padding: 24px 30px;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    @media (max-width: 900px) {
+        .contenedor { grid-template-columns: 1fr; padding: 16px; }
+        header { flex-direction: column; align-items: flex-start; }
+        .alerta-paper { margin: 18px 16px 0 16px; }
+    }
+
+    /* ===== Tarjetas ===== */
+    .tarjeta {
+        background-color: var(--panel-bg);
+        border: 1px solid var(--gris-borde);
+        border-radius: 10px;
+        padding: 22px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    }
+
+    .tarjeta h2 {
+        color: var(--negro);
+        font-size: 1.15rem;
+        margin-bottom: 16px;
+        border-bottom: 2px solid var(--dorado);
+        padding-bottom: 8px;
+    }
+
+    /* ===== Formulario de orden ===== */
+    .campo {
+        margin-bottom: 16px;
+    }
+
+    .campo label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 6px;
+        color: var(--negro);
+        font-size: 0.92rem;
+    }
+
+    .campo select,
+    .campo input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--gris-borde);
+        border-radius: 6px;
+        font-size: 0.95rem;
+        font-family: inherit;
+        color: var(--texto);
+        background-color: var(--panel-bg);
+        transition: border-color 0.2s ease;
+    }
+
+    .campo select:focus,
+    .campo input:focus {
+        outline: none;
+        border-color: var(--azul-medio);
+        box-shadow: 0 0 0 3px rgba(46, 83, 149, 0.15);
+    }
+
+    /* Tipo de orden con botones tipo "pill" */
+    .tipo-orden-grupo {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .tipo-orden-grupo button {
+        flex: 1;
+        padding: 10px 0;
+        border: 1px solid var(--azul-oscuro);
+        background-color: var(--panel-bg);
+        color: var(--negro);
+        font-weight: 600;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 0.9rem;
+    }
+
+    .tipo-orden-grupo button.activo {
+        background-color: var(--negro);
+        color: var(--blanco);
+    }
+
+    .tipo-orden-grupo button:hover:not(.activo) {
+        background-color: var(--gris-claro);
+    }
+
+    .campo-precio-limite { display: none; }
+    .campo-precio-limite.visible { display: block; }
+
+    /* Botón principal */
+    .btn-principal {
+        width: 100%;
+        background-color: var(--dorado);
+        color: var(--negro);
+        border: none;
+        padding: 14px;
+        font-size: 1.05rem;
+        font-weight: 700;
+        border-radius: 8px;
+        cursor: pointer;
+        margin-top: 8px;
+        transition: filter 0.2s ease, transform 0.1s ease;
+        letter-spacing: 0.5px;
+    }
+
+    .btn-principal:hover {
+        filter: brightness(1.08);
+    }
+
+    .btn-principal:active {
+        transform: scale(0.99);
+    }
+
+    /* ===== Vista previa de la orden ===== */
+    .vista-previa {
+        background-color: var(--gris-claro);
+        border-radius: 8px;
+        padding: 16px 18px;
+        margin-top: 4px;
+    }
+
+    .vista-previa table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.92rem;
+    }
+
+    .vista-previa td {
+        padding: 6px 4px;
+        border-bottom: 1px solid var(--gris-borde);
+    }
+
+    .vista-previa td:first-child {
+        color: #9FB0CE;
+        font-weight: 500;
+    }
+
+    .vista-previa td:last-child {
+        text-align: right;
+        font-weight: 700;
+        color: var(--negro);
+    }
+
+    .vista-previa tr.total td {
+        border-bottom: none;
+        padding-top: 12px;
+        font-size: 1.05rem;
+    }
+
+    .vista-previa tr.total td:last-child {
+        color: var(--dorado);
+        font-size: 1.15rem;
+    }
+
+    /* ===== Tabla de historial ===== */
+    table.historial {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.88rem;
+    }
+
+    table.historial thead th {
+        background-color: var(--negro);
+        color: var(--blanco);
+        text-align: left;
+        padding: 10px 8px;
+        position: sticky;
+        top: 0;
+    }
+
+    table.historial tbody td {
+        padding: 9px 8px;
+        border-bottom: 1px solid var(--gris-borde);
+    }
+
+    table.historial tbody tr:hover {
+        background-color: var(--gris-claro);
+    }
+
+    .scroll-tabla {
+        max-height: 260px;
+        overflow-y: auto;
+        border: 1px solid var(--gris-borde);
+        border-radius: 6px;
+    }
+
+    .estado-badge {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--blanco);
+        display: inline-block;
+        min-width: 75px;
+        text-align: center;
+    }
+
+    .estado-badge.Filled { background-color: var(--verde-ok); }
+    .estado-badge.Pending { background-color: var(--amarillo-paper); }
+    .estado-badge.Cancelled { background-color: var(--rojo-error); }
+
+    .lado-buy { color: var(--verde-ok); font-weight: 700; }
+    .lado-sell { color: var(--rojo-error); font-weight: 700; }
+
+    /* ===== Modal de doble verificación ===== */
+    .modal-fondo {
+        display: none;
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background-color: rgba(31, 56, 100, 0.55);
+        z-index: 999;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-fondo.activo {
+        display: flex;
+    }
+
+    .modal-caja {
+        background-color: var(--panel-bg);
+        border-radius: 12px;
+        padding: 28px;
+        width: 90%;
+        max-width: 420px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+        animation: aparecer 0.2s ease;
+    }
+
+    @keyframes aparecer {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .modal-caja h3 {
+        color: var(--negro);
+        margin-bottom: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .modal-resumen {
+        background-color: var(--gris-claro);
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin: 14px 0;
+        font-size: 0.92rem;
+    }
+
+    .modal-resumen div {
+        display: flex;
+        justify-content: space-between;
+        padding: 4px 0;
+    }
+
+    .modal-confirmacion-doble {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        background-color: rgba(197,150,26,0.14);
+        border-radius: 6px;
+        padding: 10px 12px;
+        font-size: 0.88rem;
+        margin-bottom: 18px;
+        color: #E8B836;
+    }
+
+    .modal-botones {
+        display: flex;
+        gap: 12px;
+    }
+
+    .modal-botones button {
+        flex: 1;
+        padding: 12px;
+        border-radius: 8px;
+        font-weight: 700;
+        cursor: pointer;
+        border: none;
+        font-size: 0.95rem;
+    }
+
+    .btn-cancelar {
+        background-color: var(--panel-bg);
+        border: 1px solid var(--gris-borde);
+        color: #9FB0CE;
+    }
+
+    .btn-cancelar:hover { background-color: var(--gris-claro); }
+
+    .btn-confirmar-final {
+        background-color: var(--negro);
+        color: var(--blanco);
+    }
+
+    .btn-confirmar-final:hover { background-color: #16294a; }
+
+    .btn-confirmar-final:disabled {
+        background-color: #33415F;
+        cursor: not-allowed;
+    }
+
+    /* Notificación toast */
+    .toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background-color: var(--verde-ok);
+        color: var(--blanco);
+        padding: 14px 22px;
+        border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+        font-weight: 600;
+        z-index: 1000;
+        transform: translateY(100px);
+        opacity: 0;
+        transition: all 0.35s ease;
+    }
+
+    .toast.mostrar {
+        transform: translateY(0);
+        opacity: 1;
+    }
+
+    .mensaje-error {
+        color: var(--rojo-error);
+        font-size: 0.85rem;
+        margin-top: 4px;
+        display: none;
+    }
+
+    .mensaje-error.visible { display: block; }
+</style>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          navy: { deep: '#0A1428', base: '#0D1B33', card: '#122548', border: '#1F3864' },
+          teal: '#26A69A', mint: '#4ADE80', gold: '#C5961A', sky: '#3B82F6', coral: '#EF5350',
+          ink: { 100: '#E2E8F3', 300: '#9FB0CE', 500: '#6B7A99' }
+        },
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+      }
+    }
+  };
+</script>
+<script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+<div class="w-full bg-navy-deep border-b border-navy-border/60 sticky top-0 z-[999]">
+  <div class="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3 overflow-x-auto custom-scroll">
+    <a href="home.html" class="flex items-center gap-2 shrink-0 mr-1">
+      <svg width="24" height="24" viewBox="0 0 44 44" class="shrink-0" role="img" aria-label="Logo InvestAI">
+        <rect width="44" height="44" rx="12" fill="#122548"/>
+        <line x1="14" y1="10" x2="14" y2="34" stroke="#26A69A" stroke-width="2"/>
+        <rect x="10" y="16" width="8" height="10" rx="1.5" fill="#26A69A"/>
+        <line x1="22" y1="6" x2="22" y2="30" stroke="#4ADE80" stroke-width="2"/>
+        <rect x="18" y="13" width="8" height="11" rx="1.5" fill="#4ADE80"/>
+        <line x1="30" y1="14" x2="30" y2="38" stroke="#C5961A" stroke-width="2"/>
+        <rect x="26" y="20" width="8" height="9" rx="1.5" fill="#C5961A"/>
+      </svg>
+      <span class="font-extrabold text-white text-sm tracking-tight whitespace-nowrap">InvestAI</span>
+    </a>
+    <nav class="flex items-center gap-1.5 flex-nowrap">
+      <a href="home.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="home" class="w-3.5 h-3.5"></i>Portal</a>
+      <a href="modulo_mercado.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="candlestick-chart" class="w-3.5 h-3.5"></i>Dashboard Mercado</a>
+      <a href="modulo_svc.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="shield-check" class="w-3.5 h-3.5"></i>Clasificador SVC</a>
+      <a href="investai_modelos_ia.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="cpu" class="w-3.5 h-3.5"></i>Modelos de IA</a>
+      <a href="investai_lstm.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="trending-up" class="w-3.5 h-3.5"></i>LSTM Regressor</a>
+      <a href="investai_nlp.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="newspaper" class="w-3.5 h-3.5"></i>NLP Noticias</a>
+      <a href="investai_estrategias.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="target" class="w-3.5 h-3.5"></i>Estrategias</a>
+      <a href="investai_portafolio.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="briefcase" class="w-3.5 h-3.5"></i>Portafolio</a>
+      <a href="investai_reportes_backtesting.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="bar-chart-2" class="w-3.5 h-3.5"></i>Backtesting</a>
+      <a href="investai_dashboard_completo.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i>Dashboard Resultados</a>
+      <a href="investai_broker.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors bg-teal text-navy-deep"><i data-lucide="send" class="w-3.5 h-3.5"></i>Envio a Broker</a>
+    </nav>
+  </div>
+</div>
+<script>window.addEventListener('DOMContentLoaded', function(){ if (window.lucide) lucide.createIcons(); });</script>
+
+
+<!-- ===================== ENCABEZADO ===================== -->
+<header>
+    <div>
+        <div class="logo">Invest<span>AI</span></div>
+        <div class="subtitulo">Módulo de Ejecución de Órdenes — Interactive Brokers (ib_insync)</div>
+    </div>
+
+    <div class="estado-conexion">
+        <span id="semaforoIB" class="semaforo paper"></span>
+        <span id="textoEstadoIB">Modo Paper Trading</span>
+        <select class="selector-modo" id="selectorModo" onchange="cambiarModoConexion()">
+            <option value="paper" selected>Paper Trading</option>
+            <option value="conectado">Conectado (Live)</option>
+            <option value="desconectado">Desconectado</option>
+        </select>
+    </div>
+</header>
+
+<!-- ===================== ALERTA PAPER TRADING ===================== -->
+<div class="alerta-paper" id="alertaPaper">
+    ⚠️ Modo Paper Trading activo: las órdenes enviadas se ejecutarán en la cuenta simulada de Interactive Brokers (sin dinero real).
+</div>
+
+<!-- ===================== CONTENEDOR PRINCIPAL ===================== -->
+<div class="contenedor">
+
+    <!-- ===== Columna izquierda: Formulario + Vista previa ===== -->
+    <div>
+        <div class="tarjeta">
+            <h2>📋 Formulario de Orden</h2>
+
+            <!-- Selección de Ticker -->
+            <div class="campo">
+                <label for="ticker">Ticker</label>
+                <select id="ticker" onchange="actualizarVistaPrevia()">
+                    <option value="AAPL" selected>AAPL — Apple Inc.</option>
+                    <option value="MSFT">MSFT — Microsoft Corp.</option>
+                    <option value="GOOGL">GOOGL — Alphabet Inc.</option>
+                    <option value="TSLA">TSLA — Tesla Inc.</option>
+                    <option value="NVDA">NVDA — NVIDIA Corp.</option>
+                    <option value="BTC-USD">BTC-USD — Bitcoin</option>
+                </select>
+            </div>
+
+            <!-- Lado de la orden -->
+            <div class="campo">
+                <label>Lado de la Orden</label>
+                <div class="tipo-orden-grupo">
+                    <button type="button" id="btnBuy" class="activo" onclick="seleccionarLado('BUY')">COMPRAR (BUY)</button>
+                    <button type="button" id="btnSell" onclick="seleccionarLado('SELL')">VENDER (SELL)</button>
+                </div>
+            </div>
+
+            <!-- Tipo de orden -->
+            <div class="campo">
+                <label>Tipo de Orden</label>
+                <div class="tipo-orden-grupo">
+                    <button type="button" class="activo" onclick="seleccionarTipoOrden('Market', event)">Market</button>
+                    <button type="button" onclick="seleccionarTipoOrden('Limit', event)">Limit</button>
+                    <button type="button" onclick="seleccionarTipoOrden('Stop', event)">Stop</button>
+                </div>
+            </div>
+
+            <!-- Cantidad -->
+            <div class="campo">
+                <label for="cantidad">Cantidad (acciones)</label>
+                <input type="number" id="cantidad" min="1" step="1" value="100" oninput="actualizarVistaPrevia()">
+                <div class="mensaje-error" id="errorCantidad">La cantidad debe ser un número entero mayor a 0.</div>
+            </div>
+
+            <!-- Precio límite / stop (condicional) -->
+            <div class="campo campo-precio-limite" id="campoPrecioLimite">
+                <label for="precioLimite" id="labelPrecio">Precio Límite (USD)</label>
+                <input type="number" id="precioLimite" min="0" step="0.01" value="195.50" oninput="actualizarVistaPrevia()">
+                <div class="mensaje-error" id="errorPrecio">Ingrese un precio válido mayor a 0.</div>
+            </div>
+
+            <!-- Botón de confirmación -->
+            <button class="btn-principal" onclick="abrirModalConfirmacion()">CONFIRMAR ORDEN</button>
+        </div>
+
+        <!-- ===== Vista previa de la orden ===== -->
+        <div class="tarjeta" style="margin-top: 22px;">
+            <h2>🧾 Vista Previa de la Orden</h2>
+            <div class="vista-previa">
+                <table>
+                    <tr>
+                        <td>Contrato</td>
+                        <td id="prevContrato">AAPL · STK · SMART · USD</td>
+                    </tr>
+                    <tr>
+                        <td>Lado</td>
+                        <td id="prevLado">BUY</td>
+                    </tr>
+                    <tr>
+                        <td>Tipo de Orden</td>
+                        <td id="prevTipo">MarketOrder</td>
+                    </tr>
+                    <tr>
+                        <td>Cantidad</td>
+                        <td id="prevCantidad">100</td>
+                    </tr>
+                    <tr>
+                        <td>Precio Estimado</td>
+                        <td id="prevPrecio">$195.50</td>
+                    </tr>
+                    <tr>
+                        <td>Subtotal</td>
+                        <td id="prevSubtotal">$19,550.00</td>
+                    </tr>
+                    <tr>
+                        <td>Comisión (0.1%)</td>
+                        <td id="prevComision">$19.55</td>
+                    </tr>
+                    <tr class="total">
+                        <td>Costo Total</td>
+                        <td id="prevTotal">$19,569.55</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Columna derecha: Historial de órdenes ===== -->
+    <div class="tarjeta">
+        <h2>🕒 Historial de Órdenes Recientes</h2>
+        <div class="scroll-tabla">
+            <table class="historial">
+                <thead>
+                    <tr>
+                        <th>Hora</th>
+                        <th>Ticker</th>
+                        <th>Tipo</th>
+                        <th>Lado</th>
+                        <th>Cant.</th>
+                        <th>Precio</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody id="cuerpoHistorial">
+                    <!-- Filas generadas dinámicamente con JavaScript -->
+                </tbody>
+            </table>
+        </div>
+        <p style="margin-top: 14px; font-size: 0.85rem; color: #9FB0CE;">
+            Las órdenes nuevas confirmadas se agregan automáticamente al inicio de esta tabla con estado <strong>Pending</strong>,
+            y cambian a <strong>Filled</strong> al confirmar ejecución (status='Filled' vía ib_insync).
+        </p>
+    </div>
+
+</div>
+
+<!-- ===================== MODAL DE DOBLE VERIFICACIÓN ===================== -->
+<div class="modal-fondo" id="modalConfirmacion">
+    <div class="modal-caja">
+        <h3>⚠️ Confirmación de Orden</h3>
+        <p>Está a punto de enviar la siguiente orden a Interactive Brokers. Verifique cuidadosamente los datos antes de continuar.</p>
+
+        <div class="modal-resumen">
+            <div><span>Contrato:</span><span id="modalContrato">AAPL · STK · SMART · USD</span></div>
+            <div><span>Lado:</span><span id="modalLado">BUY</span></div>
+            <div><span>Tipo:</span><span id="modalTipo">MarketOrder</span></div>
+            <div><span>Cantidad:</span><span id="modalCantidad">100</span></div>
+            <div><span>Costo total estimado:</span><span id="modalTotal">$19,569.55</span></div>
+            <div><span>Modo:</span><span id="modalModo">Paper Trading</span></div>
+        </div>
+
+        <div class="modal-confirmacion-doble">
+            <input type="checkbox" id="checkDobleVerificacion" onchange="validarCheckDoble()" style="margin-top: 3px;">
+            <label for="checkDobleVerificacion">
+                Confirmo que he revisado el ticker, la cantidad, el tipo de orden y el costo total, y autorizo el envío de esta orden.
+            </label>
+        </div>
+
+        <div class="modal-botones">
+            <button class="btn-cancelar" onclick="cerrarModal()">Cancelar</button>
+            <button class="btn-confirmar-final" id="btnConfirmarFinal" disabled onclick="enviarOrden()">Enviar Orden</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== TOAST DE NOTIFICACIÓN ===================== -->
+<div class="toast" id="toastNotificacion">✅ Orden enviada correctamente. Estado: Filled</div>
+
+<script>
+    /* ============================================================
+       MÓDULO DE EJECUCIÓN DE ÓRDENES — InvestAI
+       Simulación de conexión a Interactive Brokers vía ib_insync
+       ============================================================ */
+
+    // ----- Estado global de la orden actual -----
+    let estadoOrden = {
+        ticker: 'AAPL',
+        lado: 'BUY',
+        tipoOrden: 'Market',
+        cantidad: 100,
+        precioLimite: 195.50
+    };
+
+    // Precios de referencia simulados por ticker (USD)
+    const preciosReferencia = {
+        'AAPL': 195.50,
+        'MSFT': 421.30,
+        'GOOGL': 178.90,
+        'TSLA': 268.40,
+        'NVDA': 134.75,
+        'BTC-USD': 67250.00
+    };
+
+    const tasaComision = 0.001; // 0.1% por operación
+
+    // ----- Historial inicial simulado de órdenes -----
+    let historialOrdenes = [
+        { hora: '09:31:05', ticker: 'AAPL', tipo: 'Market', lado: 'BUY', cantidad: 50, precio: 194.80, estado: 'Filled' },
+        { hora: '09:45:22', ticker: 'TSLA', tipo: 'Limit', lado: 'SELL', cantidad: 30, precio: 270.00, estado: 'Filled' },
+        { hora: '10:02:11', ticker: 'NVDA', tipo: 'Stop', lado: 'SELL', cantidad: 75, precio: 132.00, estado: 'Pending' },
+        { hora: '10:15:48', ticker: 'MSFT', tipo: 'Market', lado: 'BUY', cantidad: 20, precio: 421.10, estado: 'Filled' },
+        { hora: '10:30:02', ticker: 'BTC-USD', tipo: 'Limit', lado: 'BUY', cantidad: 1, precio: 66800.00, estado: 'Cancelled' },
+        { hora: '10:42:37', ticker: 'GOOGL', tipo: 'Market', lado: 'SELL', cantidad: 40, precio: 179.20, estado: 'Filled' }
+    ];
+
+    // ----- Inicialización -----
+    document.addEventListener('DOMContentLoaded', () => {
+        renderizarHistorial();
+        actualizarVistaPrevia();
+    });
+
+    // ----- Cambiar lado de la orden (BUY / SELL) -----
+    function seleccionarLado(lado) {
+        estadoOrden.lado = lado;
+        document.getElementById('btnBuy').classList.toggle('activo', lado === 'BUY');
+        document.getElementById('btnSell').classList.toggle('activo', lado === 'SELL');
+        actualizarVistaPrevia();
+    }
+
+    // ----- Cambiar tipo de orden (Market / Limit / Stop) -----
+    function seleccionarTipoOrden(tipo, evento) {
+        estadoOrden.tipoOrden = tipo;
+
+        // Actualizar estilo de botones activos dentro del mismo grupo
+        const grupo = evento.target.parentElement;
+        grupo.querySelectorAll('button').forEach(btn => btn.classList.remove('activo'));
+        evento.target.classList.add('activo');
+
+        // Mostrar/ocultar campo de precio límite o stop
+        const campoPrecio = document.getElementById('campoPrecioLimite');
+        const labelPrecio = document.getElementById('labelPrecio');
+
+        if (tipo === 'Market') {
+            campoPrecio.classList.remove('visible');
+        } else if (tipo === 'Limit') {
+            campoPrecio.classList.add('visible');
+            labelPrecio.textContent = 'Precio Límite (USD)';
+        } else if (tipo === 'Stop') {
+            campoPrecio.classList.add('visible');
+            labelPrecio.textContent = 'Precio Stop (USD)';
+        }
+
+        actualizarVistaPrevia();
+    }
+
+    // ----- Validar campos numéricos -----
+    function validarCampos() {
+        let valido = true;
+        const cantidadInput = document.getElementById('cantidad');
+        const errorCantidad = document.getElementById('errorCantidad');
+        const cantidad = parseInt(cantidadInput.value);
+
+        if (!cantidad || cantidad <= 0 || !Number.isInteger(cantidad)) {
+            errorCantidad.classList.add('visible');
+            valido = false;
+        } else {
+            errorCantidad.classList.remove('visible');
+        }
+
+        if (estadoOrden.tipoOrden !== 'Market') {
+            const precioInput = document.getElementById('precioLimite');
+            const errorPrecio = document.getElementById('errorPrecio');
+            const precio = parseFloat(precioInput.value);
+
+            if (!precio || precio <= 0) {
+                errorPrecio.classList.add('visible');
+                valido = false;
+            } else {
+                errorPrecio.classList.remove('visible');
+            }
+        }
+
+        return valido;
+    }
+
+    // ----- Actualizar vista previa de la orden -----
+    function actualizarVistaPrevia() {
+        const ticker = document.getElementById('ticker').value;
+        const cantidad = parseInt(document.getElementById('cantidad').value) || 0;
+        let precio;
+
+        estadoOrden.ticker = ticker;
+        estadoOrden.cantidad = cantidad;
+
+        // Determinar precio según tipo de orden
+        if (estadoOrden.tipoOrden === 'Market') {
+            precio = preciosReferencia[ticker];
+        } else {
+            precio = parseFloat(document.getElementById('precioLimite').value) || preciosReferencia[ticker];
+            estadoOrden.precioLimite = precio;
+        }
+
+        const subtotal = cantidad * precio;
+        const comision = subtotal * tasaComision;
+        const total = subtotal + comision;
+
+        // Nombre de la clase de orden tipo ib_insync
+        const nombreOrdenIb = {
+            'Market': 'MarketOrder',
+            'Limit': 'LimitOrder',
+            'Stop': 'StopOrder'
+        }[estadoOrden.tipoOrden];
+
+        // Actualizar contrato (formato Contract de ib_insync)
+        document.getElementById('prevContrato').textContent = `${ticker} · STK · SMART · USD`;
+        document.getElementById('prevLado').textContent = estadoOrden.lado;
+        document.getElementById('prevLado').style.color = estadoOrden.lado === 'BUY' ? 'var(--verde-ok)' : 'var(--rojo-error)';
+        document.getElementById('prevTipo').textContent = nombreOrdenIb;
+        document.getElementById('prevCantidad').textContent = cantidad;
+        document.getElementById('prevPrecio').textContent = formatearMoneda(precio);
+        document.getElementById('prevSubtotal').textContent = formatearMoneda(subtotal);
+        document.getElementById('prevComision').textContent = formatearMoneda(comision);
+        document.getElementById('prevTotal').textContent = formatearMoneda(total);
+    }
+
+    // ----- Formatear valores en moneda USD -----
+    function formatearMoneda(valor) {
+        return '$' + valor.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    // ----- Abrir modal de doble verificación -----
+    function abrirModalConfirmacion() {
+        if (!validarCampos()) return;
+
+        // Copiar datos de vista previa al modal
+        document.getElementById('modalContrato').textContent = document.getElementById('prevContrato').textContent;
+        document.getElementById('modalLado').textContent = document.getElementById('prevLado').textContent;
+        document.getElementById('modalLado').style.color = document.getElementById('prevLado').style.color;
+        document.getElementById('modalTipo').textContent = document.getElementById('prevTipo').textContent;
+        document.getElementById('modalCantidad').textContent = document.getElementById('prevCantidad').textContent;
+        document.getElementById('modalTotal').textContent = document.getElementById('prevTotal').textContent;
+
+        const modoTexto = {
+            'paper': 'Paper Trading',
+            'conectado': 'Live (Cuenta Real)',
+            'desconectado': 'Sin conexión'
+        }[document.getElementById('selectorModo').value];
+        document.getElementById('modalModo').textContent = modoTexto;
+
+        // Reiniciar checkbox de confirmación
+        document.getElementById('checkDobleVerificacion').checked = false;
+        document.getElementById('btnConfirmarFinal').disabled = true;
+
+        document.getElementById('modalConfirmacion').classList.add('activo');
+    }
+
+    // ----- Cerrar modal -----
+    function cerrarModal() {
+        document.getElementById('modalConfirmacion').classList.remove('activo');
+    }
+
+    // ----- Habilitar botón de confirmación final tras checkbox -----
+    function validarCheckDoble() {
+        const check = document.getElementById('checkDobleVerificacion').checked;
+        document.getElementById('btnConfirmarFinal').disabled = !check;
+    }
+
+    // ----- Enviar orden (simulación de ib_insync) -----
+    function enviarOrden() {
+        const ahora = new Date();
+        const hora = ahora.toLocaleTimeString('es-PE', { hour12: false });
+
+        const nuevaOrden = {
+            hora: hora,
+            ticker: estadoOrden.ticker,
+            tipo: estadoOrden.tipoOrden,
+            lado: estadoOrden.lado,
+            cantidad: estadoOrden.cantidad,
+            precio: estadoOrden.tipoOrden === 'Market' ? preciosReferencia[estadoOrden.ticker] : estadoOrden.precioLimite,
+            estado: 'Pending'
+        };
+
+        // Insertar al inicio del historial
+        historialOrdenes.unshift(nuevaOrden);
+        renderizarHistorial();
+        cerrarModal();
+        mostrarToast('🟡 Orden enviada. Estado: Pending — esperando confirmación de Interactive Brokers...');
+
+        // Simular confirmación de ejecución (status='Filled') después de 2 segundos
+        setTimeout(() => {
+            nuevaOrden.estado = (Math.random() > 0.1) ? 'Filled' : 'Cancelled';
+            renderizarHistorial();
+            if (nuevaOrden.estado === 'Filled') {
+                mostrarToast('✅ Orden ejecutada correctamente. Estado: Filled');
+            } else {
+                mostrarToast('❌ La orden fue cancelada por el broker. Estado: Cancelled');
+            }
+        }, 2000);
+    }
+
+    // ----- Renderizar tabla de historial -----
+    function renderizarHistorial() {
+        const cuerpo = document.getElementById('cuerpoHistorial');
+        cuerpo.innerHTML = '';
+
+        historialOrdenes.forEach(orden => {
+            const fila = document.createElement('tr');
+            const claseLado = orden.lado === 'BUY' ? 'lado-buy' : 'lado-sell';
+
+            fila.innerHTML = `
+                <td>${orden.hora}</td>
+                <td><strong>${orden.ticker}</strong></td>
+                <td>${orden.tipo}</td>
+                <td class="${claseLado}">${orden.lado}</td>
+                <td>${orden.cantidad}</td>
+                <td>${formatearMoneda(orden.precio)}</td>
+                <td><span class="estado-badge ${orden.estado}">${orden.estado}</span></td>
+            `;
+            cuerpo.appendChild(fila);
+        });
+    }
+
+    // ----- Mostrar notificación toast -----
+    function mostrarToast(mensaje) {
+        const toast = document.getElementById('toastNotificacion');
+        toast.textContent = mensaje;
+        toast.classList.add('mostrar');
+
+        setTimeout(() => {
+            toast.classList.remove('mostrar');
+        }, 3500);
+    }
+
+    // ----- Cambiar modo / estado de conexión con Interactive Brokers -----
+    function cambiarModoConexion() {
+        const modo = document.getElementById('selectorModo').value;
+        const semaforo = document.getElementById('semaforoIB');
+        const texto = document.getElementById('textoEstadoIB');
+        const alertaPaper = document.getElementById('alertaPaper');
+
+        semaforo.classList.remove('conectado', 'desconectado', 'paper');
+
+        if (modo === 'conectado') {
+            semaforo.classList.add('conectado');
+            texto.textContent = 'Conectado (Live)';
+            alertaPaper.classList.add('oculto');
+        } else if (modo === 'desconectado') {
+            semaforo.classList.add('desconectado');
+            texto.textContent = 'Desconectado de IB';
+            alertaPaper.classList.add('oculto');
+        } else {
+            semaforo.classList.add('paper');
+            texto.textContent = 'Modo Paper Trading';
+            alertaPaper.classList.remove('oculto');
+        }
+    }
+</script>
+
+</body>
+</html>

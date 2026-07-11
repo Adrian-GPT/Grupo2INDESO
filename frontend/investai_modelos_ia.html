@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InvestAI - Consola de Control de Modelos de IA</title>
+<style>
+    /* ===== Variables de paleta financiera ===== */
+        :root {
+        --azul-oscuro: #1F3864;
+        --azul-medio: #2E5395;
+        --dorado: #C5961A;
+        --vino: #C2467A;
+        --blanco: #FFFFFF;
+        --panel-bg: #122548;
+        --gris-claro: #0D1B33;
+        --gris-borde: #1F3864;
+        --verde-ok: #34D399;
+        --rojo-error: #EF5350;
+        --amarillo-paper: #D9A60B;
+        --amarillo: #D9A60B;
+        --negro: #E2E8F3;
+        --texto: #E2E8F3;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+        font-family: 'Calibri', 'Inter', Arial, sans-serif;
+        background-color: var(--gris-claro);
+        color: var(--negro);
+        line-height: 1.45;
+        padding-bottom: 40px;
+    }
+
+    /* ===== Encabezado ===== */
+    header {
+        background-color: var(--negro);
+        color: var(--blanco);
+        padding: 18px 28px;
+    }
+
+    header .logo {
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: 1px;
+    }
+
+    header .logo span { color: var(--dorado); }
+
+    header .subtitulo {
+        font-size: 0.88rem;
+        opacity: 0.85;
+        margin-top: 3px;
+    }
+
+    /* ===== Grid principal de 12 columnas ===== */
+    .grid-consola {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 18px;
+        padding: 20px 24px;
+        max-width: 1500px;
+        margin: 0 auto;
+    }
+
+    .panel {
+        background-color: var(--panel-bg);
+        border: 1px solid var(--gris-borde);
+        border-radius: 10px;
+        padding: 18px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    }
+
+    .panel h2 {
+        color: var(--negro);
+        font-size: 1.05rem;
+        border-bottom: 2px solid var(--dorado);
+        padding-bottom: 8px;
+        margin-bottom: 14px;
+    }
+
+    /* ===== Asignación de columnas ===== */
+    .panel-seleccion   { grid-column: span 4; }
+    .panel-acordeones  { grid-column: span 8; }
+    .panel-ejecucion   { grid-column: 1 / -1; }
+    .panel-metricas    { grid-column: 1 / -1; }
+
+    @media (max-width: 1100px) {
+        .panel-seleccion,
+        .panel-acordeones,
+        .panel-ejecucion,
+        .panel-metricas { grid-column: 1 / -1; }
+    }
+
+    /* ===== Panel de selección de modelos ===== */
+    .botones-rapidos {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 14px;
+        flex-wrap: wrap;
+    }
+
+    .btn-rapido {
+        flex: 1;
+        padding: 9px 0;
+        border: 1px solid var(--azul-oscuro);
+        background-color: var(--panel-bg);
+        color: var(--negro);
+        font-weight: 600;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: all 0.2s ease;
+    }
+
+    .btn-rapido:hover {
+        background-color: var(--negro);
+        color: var(--blanco);
+    }
+
+    .btn-rapido.limpiar:hover {
+        background-color: var(--rojo-error);
+        border-color: var(--rojo-error);
+        color: var(--blanco);
+    }
+
+    .lista-checks {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        max-height: 480px;
+        overflow-y: auto;
+        padding-right: 4px;
+    }
+
+    .item-check {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 9px 12px;
+        border-radius: 6px;
+        background-color: var(--gris-claro);
+        transition: background-color 0.2s ease;
+    }
+
+    .item-check:hover {
+        background-color: #1A2E52;
+    }
+
+    .item-check label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        font-size: 0.92rem;
+        flex: 1;
+    }
+
+    .item-check input {
+        width: 17px;
+        height: 17px;
+        accent-color: var(--negro);
+        cursor: pointer;
+    }
+
+    .etiqueta-tipo {
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 10px;
+        color: var(--blanco);
+        white-space: nowrap;
+    }
+
+    .etiqueta-tipo.Clasificacion { background-color: var(--azul-medio); }
+    .etiqueta-tipo.Regresion { background-color: var(--vino); }
+
+    .contador-seleccion {
+        margin-top: 12px;
+        text-align: center;
+        font-size: 0.88rem;
+        color: var(--negro);
+        font-weight: 700;
+        background-color: var(--gris-claro);
+        padding: 8px;
+        border-radius: 6px;
+    }
+
+    /* ===== Acordeones de hiperparámetros ===== */
+    .lista-acordeones {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-height: 540px;
+        overflow-y: auto;
+        padding-right: 4px;
+    }
+
+    .acordeon {
+        border: 1px solid var(--gris-borde);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .acordeon-cabecera {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        background-color: var(--gris-claro);
+        cursor: pointer;
+        user-select: none;
+        transition: background-color 0.2s ease;
+    }
+
+    .acordeon-cabecera:hover {
+        background-color: #1A2E52;
+    }
+
+    .acordeon-cabecera.deshabilitado {
+        opacity: 0.45;
+        cursor: not-allowed;
+    }
+
+    .acordeon-titulo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        color: var(--negro);
+        font-size: 0.95rem;
+    }
+
+    .acordeon-flecha {
+        transition: transform 0.3s ease;
+        font-size: 0.9rem;
+        color: var(--dorado);
+    }
+
+    .acordeon.abierto .acordeon-flecha {
+        transform: rotate(180deg);
+    }
+
+    .acordeon-contenido {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.35s ease;
+        background-color: var(--panel-bg);
+    }
+
+    .acordeon.abierto .acordeon-contenido {
+        max-height: 500px;
+    }
+
+    .acordeon-formulario {
+        padding: 14px 16px;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+
+    @media (max-width: 600px) {
+        .acordeon-formulario { grid-template-columns: 1fr; }
+    }
+
+    .campo-hp {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .campo-hp label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--negro);
+    }
+
+    .campo-hp input,
+    .campo-hp select {
+        padding: 7px 10px;
+        border: 1px solid var(--gris-borde);
+        border-radius: 6px;
+        font-size: 0.88rem;
+        font-family: inherit;
+        background-color: var(--panel-bg);
+    }
+
+    .campo-hp input:focus,
+    .campo-hp select:focus {
+        outline: none;
+        border-color: var(--azul-medio);
+        box-shadow: 0 0 0 3px rgba(46, 83, 149, 0.15);
+    }
+
+    /* ===== Panel de ejecución centralizado ===== */
+    .panel-ejecucion {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 18px;
+    }
+
+    .info-ejecucion {
+        flex: 1;
+        min-width: 220px;
+    }
+
+    .info-ejecucion h3 {
+        color: var(--negro);
+        font-size: 1rem;
+        margin-bottom: 4px;
+    }
+
+    .info-ejecucion p {
+        font-size: 0.85rem;
+        color: #9FB0CE;
+    }
+
+    .btn-ejecutar {
+        background-color: var(--dorado);
+        color: var(--negro);
+        border: none;
+        padding: 16px 38px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        border-radius: 10px;
+        cursor: pointer;
+        letter-spacing: 0.5px;
+        transition: filter 0.2s ease, transform 0.1s ease;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .btn-ejecutar:hover { filter: brightness(1.08); }
+    .btn-ejecutar:active { transform: scale(0.98); }
+
+    .btn-ejecutar:disabled {
+        background-color: #33415F;
+        color: #9FB0CE;
+        cursor: not-allowed;
+    }
+
+    /* Spinner */
+    .spinner {
+        width: 20px;
+        height: 20px;
+        border: 3px solid rgba(31,56,100,0.25);
+        border-top-color: var(--negro);
+        border-radius: 50%;
+        animation: girar 0.7s linear infinite;
+        display: none;
+    }
+
+    .spinner.activo { display: inline-block; }
+
+    @keyframes girar {
+        to { transform: rotate(360deg); }
+    }
+
+    /* Barra de progreso */
+    .barra-progreso-contenedor {
+        width: 100%;
+        height: 10px;
+        background-color: var(--gris-borde);
+        border-radius: 6px;
+        overflow: hidden;
+        margin-top: 12px;
+        display: none;
+    }
+
+    .barra-progreso-contenedor.activo { display: block; }
+
+    .barra-progreso {
+        height: 100%;
+        width: 0%;
+        background-color: var(--dorado);
+        border-radius: 6px;
+        transition: width 0.25s ease-out;
+    }
+
+    .texto-progreso {
+        font-size: 0.8rem;
+        color: var(--negro);
+        margin-top: 6px;
+        font-weight: 600;
+        display: none;
+    }
+
+    .texto-progreso.activo { display: block; }
+
+    /* ===== Tabla de métricas en tiempo real ===== */
+    .scroll-tabla {
+        max-height: 420px;
+        overflow-y: auto;
+        border: 1px solid var(--gris-borde);
+        border-radius: 8px;
+    }
+
+    table.tabla-metricas {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+
+    table.tabla-metricas thead th {
+        background-color: var(--negro);
+        color: var(--blanco);
+        text-align: left;
+        padding: 10px 12px;
+        position: sticky;
+        top: 0;
+        font-size: 0.85rem;
+    }
+
+    table.tabla-metricas tbody td {
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--gris-borde);
+    }
+
+    table.tabla-metricas tbody tr:hover {
+        background-color: var(--gris-claro);
+    }
+
+    table.tabla-metricas tbody tr.fila-inactiva {
+        opacity: 0.4;
+    }
+
+    .valor-verde { color: var(--verde-ok); font-weight: 700; }
+    .valor-rojo { color: var(--rojo-error); font-weight: 700; }
+    .valor-ambar { color: var(--amarillo); font-weight: 700; }
+    .valor-neutro { color: #9FB0CE; }
+
+    .badge-estado {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--blanco);
+        display: inline-block;
+        min-width: 95px;
+        text-align: center;
+    }
+
+    .badge-estado.Completado { background-color: var(--verde-ok); }
+    .badge-estado.Procesando { background-color: var(--amarillo); }
+    .badge-estado.Pendiente { background-color: #78909C; }
+    .badge-estado.Inactivo { background-color: #33415F; color: #9FB0CE; }
+    .badge-estado.Error { background-color: var(--rojo-error); }
+</style>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          navy: { deep: '#0A1428', base: '#0D1B33', card: '#122548', border: '#1F3864' },
+          teal: '#26A69A', mint: '#4ADE80', gold: '#C5961A', sky: '#3B82F6', coral: '#EF5350',
+          ink: { 100: '#E2E8F3', 300: '#9FB0CE', 500: '#6B7A99' }
+        },
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+      }
+    }
+  };
+</script>
+<script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+<div class="w-full bg-navy-deep border-b border-navy-border/60 sticky top-0 z-[999]">
+  <div class="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3 overflow-x-auto custom-scroll">
+    <a href="home.html" class="flex items-center gap-2 shrink-0 mr-1">
+      <svg width="24" height="24" viewBox="0 0 44 44" class="shrink-0" role="img" aria-label="Logo InvestAI">
+        <rect width="44" height="44" rx="12" fill="#122548"/>
+        <line x1="14" y1="10" x2="14" y2="34" stroke="#26A69A" stroke-width="2"/>
+        <rect x="10" y="16" width="8" height="10" rx="1.5" fill="#26A69A"/>
+        <line x1="22" y1="6" x2="22" y2="30" stroke="#4ADE80" stroke-width="2"/>
+        <rect x="18" y="13" width="8" height="11" rx="1.5" fill="#4ADE80"/>
+        <line x1="30" y1="14" x2="30" y2="38" stroke="#C5961A" stroke-width="2"/>
+        <rect x="26" y="20" width="8" height="9" rx="1.5" fill="#C5961A"/>
+      </svg>
+      <span class="font-extrabold text-white text-sm tracking-tight whitespace-nowrap">InvestAI</span>
+    </a>
+    <nav class="flex items-center gap-1.5 flex-nowrap">
+      <a href="home.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="home" class="w-3.5 h-3.5"></i>Portal</a>
+      <a href="modulo_mercado.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="candlestick-chart" class="w-3.5 h-3.5"></i>Dashboard Mercado</a>
+      <a href="modulo_svc.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="shield-check" class="w-3.5 h-3.5"></i>Clasificador SVC</a>
+      <a href="investai_modelos_ia.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors bg-teal text-navy-deep"><i data-lucide="cpu" class="w-3.5 h-3.5"></i>Modelos de IA</a>
+      <a href="investai_lstm.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="trending-up" class="w-3.5 h-3.5"></i>LSTM Regressor</a>
+      <a href="investai_nlp.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="newspaper" class="w-3.5 h-3.5"></i>NLP Noticias</a>
+      <a href="investai_estrategias.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="target" class="w-3.5 h-3.5"></i>Estrategias</a>
+      <a href="investai_portafolio.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="briefcase" class="w-3.5 h-3.5"></i>Portafolio</a>
+      <a href="investai_reportes_backtesting.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="bar-chart-2" class="w-3.5 h-3.5"></i>Backtesting</a>
+      <a href="investai_dashboard_completo.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i>Dashboard Resultados</a>
+      <a href="investai_broker.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="send" class="w-3.5 h-3.5"></i>Envio a Broker</a>
+    </nav>
+  </div>
+</div>
+<script>window.addEventListener('DOMContentLoaded', function(){ if (window.lucide) lucide.createIcons(); });</script>
+
+
+<!-- ===================== ENCABEZADO ===================== -->
+<header>
+    <div class="logo">Invest<span>AI</span></div>
+    <div class="subtitulo">Consola de Control de Modelos de IA — Core Predictivo (16 Modelos)</div>
+</header>
+
+<!-- ===================== GRID PRINCIPAL ===================== -->
+<div class="grid-consola">
+
+    <!-- ===== PANEL LATERAL DE SELECCIÓN (4 cols) ===== -->
+    <div class="panel panel-seleccion">
+        <h2>🧩 Selección de Modelos Activos</h2>
+
+        <div class="botones-rapidos">
+            <button class="btn-rapido" onclick="seleccionarTodos()">✅ Seleccionar Todos</button>
+            <button class="btn-rapido limpiar" onclick="limpiarSeleccion()">🗑️ Limpiar Selección</button>
+        </div>
+
+        <div class="lista-checks" id="listaChecks">
+            <!-- Generado dinámicamente con JavaScript -->
+        </div>
+
+        <div class="contador-seleccion" id="contadorSeleccion">0 de 16 modelos seleccionados</div>
+    </div>
+
+    <!-- ===== SECCIÓN DE ACORDEONES (8 cols) ===== -->
+    <div class="panel panel-acordeones">
+        <h2>⚙️ Configuración de Hiperparámetros por Modelo</h2>
+        <div class="lista-acordeones" id="listaAcordeones">
+            <!-- Generado dinámicamente con JavaScript -->
+        </div>
+    </div>
+
+    <!-- ===== PANEL DE EJECUCIÓN CENTRALIZADO ===== -->
+    <div class="panel panel-ejecucion">
+        <div class="info-ejecucion">
+            <h3>Ejecución del Análisis Global</h3>
+            <p id="textoInfoEjecucion">Seleccione los modelos a ejecutar y configure sus hiperparámetros antes de iniciar.</p>
+            <div class="barra-progreso-contenedor" id="barraContenedor">
+                <div class="barra-progreso" id="barraProgreso"></div>
+            </div>
+            <div class="texto-progreso" id="textoProgreso">Procesando 0 / 0 modelos...</div>
+        </div>
+        <button class="btn-ejecutar" id="btnEjecutar" onclick="ejecutarAnalisis()">
+            <span class="spinner" id="spinnerEjecutar"></span>
+            <span id="textoBtnEjecutar">▶ EJECUTAR ANÁLISIS</span>
+        </button>
+    </div>
+
+    <!-- ===== TABLA DE MÉTRICAS EN TIEMPO REAL ===== -->
+    <div class="panel panel-metricas">
+        <h2>📊 Métricas de Rendimiento en Tiempo Real</h2>
+        <div class="scroll-tabla">
+            <table class="tabla-metricas">
+                <thead>
+                    <tr>
+                        <th>Modelo</th>
+                        <th>Tipo</th>
+                        <th>Accuracy</th>
+                        <th>F1-Score</th>
+                        <th>RMSE</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody id="cuerpoTablaMetricas">
+                    <!-- Generado dinámicamente con JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    /* ============================================================
+       CONSOLA DE CONTROL DE MODELOS DE IA — InvestAI
+       16 modelos del Core Predictivo: clasificación y regresión
+       ============================================================ */
+
+    // ----- Definición completa de los 16 modelos del Core de IA -----
+    // Cada modelo incluye: identificador, nombre, tipo y los campos
+    // de hiperparámetros que se mostrarán en su acordeón.
+    const modelosCore = [
+        {
+            id: 'svc', nombre: 'SVC (Support Vector Classifier)', tipo: 'Clasificacion',
+            hiperparametros: [
+                { id: 'C', etiqueta: 'Parámetro C', tipo: 'number', valor: 1.0, paso: 0.1 },
+                { id: 'gamma', etiqueta: 'Gamma', tipo: 'select', opciones: ['scale', 'auto'], valor: 'scale' },
+                { id: 'kernel', etiqueta: 'Kernel', tipo: 'select', opciones: ['rbf', 'linear', 'poly'], valor: 'rbf' },
+                { id: 'ventana', etiqueta: 'Ventana Temporal (días)', tipo: 'number', valor: 60, paso: 1 }
+            ]
+        },
+        {
+            id: 'lstm_cls', nombre: 'LSTM Classifier', tipo: 'Clasificacion',
+            hiperparametros: [
+                { id: 'epocas', etiqueta: 'Épocas', tipo: 'number', valor: 50, paso: 1 },
+                { id: 'dropout', etiqueta: 'Dropout', tipo: 'number', valor: 0.2, paso: 0.05 },
+                { id: 'batch', etiqueta: 'Batch Size', tipo: 'number', valor: 32, paso: 1 },
+                { id: 'lr', etiqueta: 'Learning Rate', tipo: 'number', valor: 0.001, paso: 0.0001 }
+            ]
+        },
+        {
+            id: 'bilstm', nombre: 'BiLSTM Classifier', tipo: 'Clasificacion',
+            hiperparametros: [
+                { id: 'epocas', etiqueta: 'Épocas', tipo: 'number', valor: 60, paso: 1 },
+                { id: 'dropout', etiqueta: 'Dropout', tipo: 'number', valor: 0.25, paso: 0.05 },
+                { id: 'batch', etiqueta: 'Batch Size', tipo: 'number', valor: 32, paso: 1 },
+                { id: 'unidades', etiqueta: 'Unidades LSTM', tipo: 'number', valor: 64, paso: 8 }
+            ]
+        },
+        {
+            id: 'nlp', nombre: 'NLP (VADER)', tipo: 'Clasificacion',
+            hiperparametros: [
+                { id: 'umbral_pos', etiqueta: 'Umbral BULLISH (compound ≥)', tipo: 'number', valor: 0.05, paso: 0.01 },
+                { id: 'umbral_neg', etiqueta: 'Umbral BEARISH (compound ≤)', tipo: 'number', valor: -0.05, paso: 0.01 },
+                { id: 'fuente', etiqueta: 'Fuente de Noticias', tipo: 'select', opciones: ['Yahoo Finance News', 'Reuters', 'Bloomberg', 'Todas'], valor: 'Todas' }
+            ]
+        },
+        {
+            id: 'xgb', nombre: 'XGBoost', tipo: 'Clasificacion',
+            hiperparametros: [
+                { id: 'n_estimators', etiqueta: 'N° de Árboles', tipo: 'number', valor: 200, paso: 10 },
+                { id: 'max_depth', etiqueta: 'Profundidad Máxima', tipo: 'number', valor: 6, paso: 1 },
+                { id: 'lr', etiqueta: 'Learning Rate', tipo: 'number', valor: 0.1, paso: 0.01 },
+                { id: 'subsample', etiqueta: 'Subsample', tipo: 'number', valor: 0.8, paso: 0.05 }
+            ]
+        },
+        {
+            id: 'gru', nombre: 'GRU Classifier', tipo: 'Clasificacion',
+            hiperparametros: [
+                { id: 'epocas', etiqueta: 'Épocas', tipo: 'number', valor: 45, paso: 1 },
+                { id: 'dropout', etiqueta: 'Dropout', tipo: 'number', valor: 0.2, paso: 0.05 },
+                { id: 'batch', etiqueta: 'Batch Size', tipo: 'number', valor: 32, paso: 1 },
+                { id: 'unidades', etiqueta: 'Unidades GRU', tipo: 'number', valor: 48, paso: 8 }
+            ]
+        },
+        {
+            id: 'llm', nombre: 'LLM (OpenAI)', tipo: 'Clasificacion',
+            hiperparametros: [
+                { id: 'modelo', etiqueta: 'Modelo', tipo: 'select', opciones: ['gpt-5.4-mini', 'gpt-5.4-thinking', 'gpt-5.5'], valor: 'gpt-5.4-mini' },
+                { id: 'temperatura', etiqueta: 'Temperatura', tipo: 'number', valor: 0.3, paso: 0.05 },
+                { id: 'max_tokens', etiqueta: 'Máx. Tokens de Salida', tipo: 'number', valor: 256, paso: 16 }
+            ]
+        },
+        {
+            id: 'rfc', nombre: 'RFC (Random Forest Classifier)', tipo: 'Clasificacion',
+            hiperparametros: [
+                { id: 'n_estimators', etiqueta: 'N° de Árboles', tipo: 'number', valor: 150, paso: 10 },
+                { id: 'max_depth', etiqueta: 'Profundidad Máxima', tipo: 'number', valor: 10, paso: 1 },
+                { id: 'min_samples_split', etiqueta: 'Mín. Muestras para Dividir', tipo: 'number', valor: 2, paso: 1 }
+            ]
+        },
+        {
+            id: 'srnn', nombre: 'SimpleRNN Classifier', tipo: 'Clasificacion',
+            hiperparametros: [
+                { id: 'epocas', etiqueta: 'Épocas', tipo: 'number', valor: 40, paso: 1 },
+                { id: 'dropout', etiqueta: 'Dropout', tipo: 'number', valor: 0.15, paso: 0.05 },
+                { id: 'batch', etiqueta: 'Batch Size', tipo: 'number', valor: 32, paso: 1 },
+                { id: 'unidades', etiqueta: 'Unidades RNN', tipo: 'number', valor: 32, paso: 8 }
+            ]
+        },
+        {
+            id: 'lstm_reg', nombre: 'LSTM Regressor', tipo: 'Regresion',
+            hiperparametros: [
+                { id: 'epocas', etiqueta: 'Épocas', tipo: 'number', valor: 80, paso: 1 },
+                { id: 'dropout', etiqueta: 'Dropout', tipo: 'number', valor: 0.2, paso: 0.05 },
+                { id: 'batch', etiqueta: 'Batch Size', tipo: 'number', valor: 32, paso: 1 },
+                { id: 'ventana', etiqueta: 'Ventana Temporal (días)', tipo: 'number', valor: 60, paso: 1 },
+                { id: 'lr', etiqueta: 'Learning Rate', tipo: 'number', valor: 0.001, paso: 0.0001 }
+            ]
+        },
+        {
+            id: 'svr', nombre: 'SVRegressor', tipo: 'Regresion',
+            hiperparametros: [
+                { id: 'C', etiqueta: 'Parámetro C', tipo: 'number', valor: 100, paso: 1 },
+                { id: 'gamma', etiqueta: 'Gamma', tipo: 'select', opciones: ['scale', 'auto'], valor: 'scale' },
+                { id: 'epsilon', etiqueta: 'Epsilon', tipo: 'number', valor: 0.1, paso: 0.01 },
+                { id: 'kernel', etiqueta: 'Kernel', tipo: 'select', opciones: ['rbf', 'linear', 'poly'], valor: 'rbf' }
+            ]
+        },
+        {
+            id: 'mvlin', nombre: 'MultiVar Linear Regression', tipo: 'Regresion',
+            hiperparametros: [
+                { id: 'normalizar', etiqueta: 'Normalizar Variables', tipo: 'select', opciones: ['Sí', 'No'], valor: 'Sí' },
+                { id: 'variables', etiqueta: 'N° de Variables Predictoras', tipo: 'number', valor: 8, paso: 1 }
+            ]
+        },
+        {
+            id: 'mvpoly', nombre: 'MultiVar Polynomial Regression', tipo: 'Regresion',
+            hiperparametros: [
+                { id: 'grado', etiqueta: 'Grado del Polinomio', tipo: 'number', valor: 2, paso: 1 },
+                { id: 'normalizar', etiqueta: 'Normalizar Variables', tipo: 'select', opciones: ['Sí', 'No'], valor: 'Sí' },
+                { id: 'variables', etiqueta: 'N° de Variables Predictoras', tipo: 'number', valor: 8, paso: 1 }
+            ]
+        },
+        {
+            id: 'arima_lstm', nombre: 'ARIMA-LSTM (Ensamble)', tipo: 'Regresion',
+            hiperparametros: [
+                { id: 'p', etiqueta: 'ARIMA (p)', tipo: 'number', valor: 5, paso: 1 },
+                { id: 'd', etiqueta: 'ARIMA (d)', tipo: 'number', valor: 1, paso: 1 },
+                { id: 'q', etiqueta: 'ARIMA (q)', tipo: 'number', valor: 0, paso: 1 },
+                { id: 'epocas_lstm', etiqueta: 'Épocas LSTM', tipo: 'number', valor: 50, paso: 1 },
+                { id: 'dropout', etiqueta: 'Dropout LSTM', tipo: 'number', valor: 0.2, paso: 0.05 }
+            ]
+        },
+        {
+            id: 'ens_cls', nombre: 'Ensamblado de Clasificadores (Voting)', tipo: 'Clasificacion',
+            hiperparametros: [
+                { id: 'metodo_voto', etiqueta: 'Método de Votación', tipo: 'select', opciones: ['Mayoría Simple', 'Voto Ponderado', 'Soft Voting'], valor: 'Voto Ponderado' },
+                { id: 'umbral_consenso', etiqueta: 'Umbral de Consenso (%)', tipo: 'number', valor: 60, paso: 5 }
+            ]
+        },
+        {
+            id: 'ens_reg', nombre: 'Ensamblado de Regresores (Stacking)', tipo: 'Regresion',
+            hiperparametros: [
+                { id: 'metodo_combinacion', etiqueta: 'Método de Combinación', tipo: 'select', opciones: ['Promedio Simple', 'Promedio Ponderado', 'Stacking (Meta-modelo)'], valor: 'Promedio Ponderado' },
+                { id: 'meta_modelo', etiqueta: 'Meta-modelo', tipo: 'select', opciones: ['Linear Regression', 'Ridge', 'XGBoost'], valor: 'Ridge' }
+            ]
+        }
+    ];
+
+    // ----- Generadores de números aleatorios -----
+    function aleatorio(min, max) {
+        return Math.random() * (max - min) + min;
+    }
+
+    // ============================================================
+    // RENDERIZADO DEL PANEL LATERAL DE SELECCIÓN (CHECKBOXES)
+    // ============================================================
+    function renderizarChecks() {
+        const contenedor = document.getElementById('listaChecks');
+        contenedor.innerHTML = '';
+
+        modelosCore.forEach(modelo => {
+            const div = document.createElement('div');
+            div.className = 'item-check';
+
+            const etiquetaTipo = modelo.tipo === 'Clasificacion' ? 'CLAS.' : 'REGR.';
+
+            div.innerHTML = `
+                <label for="chk_${modelo.id}">
+                    <input type="checkbox" id="chk_${modelo.id}" checked
+                           onchange="onCambioCheckModelo('${modelo.id}')">
+                    ${modelo.nombre}
+                </label>
+                <span class="etiqueta-tipo ${modelo.tipo}">${etiquetaTipo}</span>
+            `;
+            contenedor.appendChild(div);
+        });
+
+        actualizarContadorSeleccion();
+    }
+
+    // ----- Acción al cambiar un checkbox: habilita/deshabilita su acordeón -----
+    function onCambioCheckModelo(idModelo) {
+        const checkbox = document.getElementById(`chk_${idModelo}`);
+        const cabecera = document.getElementById(`cabecera_${idModelo}`);
+        const acordeon = document.getElementById(`acordeon_${idModelo}`);
+
+        if (checkbox.checked) {
+            cabecera.classList.remove('deshabilitado');
+        } else {
+            cabecera.classList.add('deshabilitado');
+            acordeon.classList.remove('abierto'); // cerrar si estaba abierto
+        }
+
+        actualizarContadorSeleccion();
+        actualizarFilaInactiva(idModelo);
+    }
+
+    // ----- "Seleccionar Todos" -----
+    function seleccionarTodos() {
+        modelosCore.forEach(modelo => {
+            const checkbox = document.getElementById(`chk_${modelo.id}`);
+            checkbox.checked = true;
+            document.getElementById(`cabecera_${modelo.id}`).classList.remove('deshabilitado');
+            actualizarFilaInactiva(modelo.id);
+        });
+        actualizarContadorSeleccion();
+    }
+
+    // ----- "Limpiar Selección" -----
+    function limpiarSeleccion() {
+        modelosCore.forEach(modelo => {
+            const checkbox = document.getElementById(`chk_${modelo.id}`);
+            checkbox.checked = false;
+            document.getElementById(`cabecera_${modelo.id}`).classList.add('deshabilitado');
+            document.getElementById(`acordeon_${modelo.id}`).classList.remove('abierto');
+            actualizarFilaInactiva(modelo.id);
+        });
+        actualizarContadorSeleccion();
+    }
+
+    // ----- Actualizar contador de modelos seleccionados -----
+    function actualizarContadorSeleccion() {
+        const total = modelosCore.length;
+        let seleccionados = 0;
+
+        modelosCore.forEach(modelo => {
+            if (document.getElementById(`chk_${modelo.id}`).checked) seleccionados++;
+        });
+
+        document.getElementById('contadorSeleccion').textContent =
+            `${seleccionados} de ${total} modelos seleccionados`;
+
+        document.getElementById('textoInfoEjecucion').textContent =
+            seleccionados > 0
+                ? `Se ejecutarán ${seleccionados} modelo(s) con los hiperparámetros configurados.`
+                : 'No hay modelos seleccionados. Active al menos uno para ejecutar el análisis.';
+    }
+
+    // ============================================================
+    // RENDERIZADO DE ACORDEONES DE HIPERPARÁMETROS
+    // ============================================================
+    function renderizarAcordeones() {
+        const contenedor = document.getElementById('listaAcordeones');
+        contenedor.innerHTML = '';
+
+        modelosCore.forEach(modelo => {
+            const acordeon = document.createElement('div');
+            acordeon.className = 'acordeon';
+            acordeon.id = `acordeon_${modelo.id}`;
+
+            const etiquetaTipo = modelo.tipo === 'Clasificacion' ? 'Clasificación' : 'Regresión';
+
+            // Generar campos de hiperparámetros dinámicamente
+            const camposHtml = modelo.hiperparametros.map(hp => {
+                if (hp.tipo === 'select') {
+                    const opcionesHtml = hp.opciones.map(op =>
+                        `<option value="${op}" ${op === hp.valor ? 'selected' : ''}>${op}</option>`
+                    ).join('');
+                    return `
+                        <div class="campo-hp">
+                            <label>${hp.etiqueta}</label>
+                            <select id="${modelo.id}_${hp.id}">${opcionesHtml}</select>
+                        </div>
+                    `;
+                } else {
+                    return `
+                        <div class="campo-hp">
+                            <label>${hp.etiqueta}</label>
+                            <input type="number" id="${modelo.id}_${hp.id}" value="${hp.valor}" step="${hp.paso}">
+                        </div>
+                    `;
+                }
+            }).join('');
+
+            acordeon.innerHTML = `
+                <div class="acordeon-cabecera" id="cabecera_${modelo.id}" onclick="toggleAcordeon('${modelo.id}')">
+                    <div class="acordeon-titulo">
+                        <span class="etiqueta-tipo ${modelo.tipo}">${etiquetaTipo === 'Clasificación' ? 'CLAS.' : 'REGR.'}</span>
+                        ${modelo.nombre}
+                    </div>
+                    <span class="acordeon-flecha">▼</span>
+                </div>
+                <div class="acordeon-contenido">
+                    <div class="acordeon-formulario">
+                        ${camposHtml}
+                    </div>
+                </div>
+            `;
+
+            contenedor.appendChild(acordeon);
+        });
+    }
+
+    // ----- Toggle de apertura/cierre de un acordeón -----
+    function toggleAcordeon(idModelo) {
+        const cabecera = document.getElementById(`cabecera_${idModelo}`);
+        const checkbox = document.getElementById(`chk_${idModelo}`);
+
+        // No permitir abrir el acordeón si el modelo está desactivado
+        if (!checkbox.checked) return;
+
+        const acordeon = document.getElementById(`acordeon_${idModelo}`);
+        acordeon.classList.toggle('abierto');
+    }
+
+    // ============================================================
+    // TABLA DE MÉTRICAS EN TIEMPO REAL
+    // ============================================================
+    let metricasActuales = {}; // almacena valores de cada modelo
+
+    // ----- Inicializar métricas con estado "Pendiente" -----
+    function inicializarMetricas() {
+        metricasActuales = {};
+
+        modelosCore.forEach(modelo => {
+            metricasActuales[modelo.id] = {
+                accuracy: null,
+                f1: null,
+                rmse: null,
+                estado: 'Pendiente'
+            };
+        });
+    }
+
+    // ----- Renderizar tabla completa -----
+    function renderizarTablaMetricas() {
+        const cuerpo = document.getElementById('cuerpoTablaMetricas');
+        cuerpo.innerHTML = '';
+
+        modelosCore.forEach(modelo => {
+            const m = metricasActuales[modelo.id];
+            const checkbox = document.getElementById(`chk_${modelo.id}`);
+            const activo = checkbox ? checkbox.checked : true;
+
+            const fila = document.createElement('tr');
+            fila.id = `fila_${modelo.id}`;
+            if (!activo) fila.classList.add('fila-inactiva');
+
+            const etiquetaTipo = modelo.tipo === 'Clasificacion' ? 'Clasificación' : 'Regresión';
+
+            // Formatear Accuracy
+            let accTexto = '—', accClase = 'valor-neutro';
+            if (m.accuracy !== null) {
+                accTexto = (m.accuracy * 100).toFixed(1) + '%';
+                accClase = m.accuracy >= 0.75 ? 'valor-verde' : (m.accuracy >= 0.6 ? 'valor-ambar' : 'valor-rojo');
+            }
+
+            // Formatear F1-Score
+            let f1Texto = '—', f1Clase = 'valor-neutro';
+            if (m.f1 !== null) {
+                f1Texto = m.f1.toFixed(3);
+                f1Clase = m.f1 >= 0.75 ? 'valor-verde' : (m.f1 >= 0.6 ? 'valor-ambar' : 'valor-rojo');
+            }
+
+            // Formatear RMSE
+            let rmseTexto = '—', rmseClase = 'valor-neutro';
+            if (m.rmse !== null) {
+                rmseTexto = m.rmse.toFixed(2);
+                rmseClase = m.rmse <= 3.5 ? 'valor-verde' : (m.rmse <= 6 ? 'valor-ambar' : 'valor-rojo');
+            }
+
+            // Si el modelo es de clasificación, RMSE no aplica (y viceversa con F1)
+            if (modelo.tipo === 'Clasificacion') {
+                rmseTexto = 'N/A';
+                rmseClase = 'valor-neutro';
+            } else {
+                f1Texto = 'N/A';
+                f1Clase = 'valor-neutro';
+                accTexto = 'N/A';
+                accClase = 'valor-neutro';
+            }
+
+            const estadoMostrar = activo ? m.estado : 'Inactivo';
+
+            fila.innerHTML = `
+                <td><strong>${modelo.nombre}</strong></td>
+                <td>${etiquetaTipo}</td>
+                <td class="${accClase}">${accTexto}</td>
+                <td class="${f1Clase}">${f1Texto}</td>
+                <td class="${rmseClase}">${rmseTexto}</td>
+                <td><span class="badge-estado ${estadoMostrar}">${estadoMostrar}</span></td>
+            `;
+
+            cuerpo.appendChild(fila);
+        });
+    }
+
+    // ----- Marcar fila como inactiva sin reconstruir toda la tabla -----
+    function actualizarFilaInactiva(idModelo) {
+        renderizarTablaMetricas();
+    }
+
+    // ============================================================
+    // EJECUCIÓN DEL ANÁLISIS GLOBAL (simulación)
+    // ============================================================
+    function ejecutarAnalisis() {
+        // Recolectar modelos seleccionados
+        const modelosActivos = modelosCore.filter(modelo =>
+            document.getElementById(`chk_${modelo.id}`).checked
+        );
+
+        if (modelosActivos.length === 0) {
+            alert('Debe seleccionar al menos un modelo para ejecutar el análisis.');
+            return;
+        }
+
+        // Deshabilitar botón y mostrar spinner
+        const btn = document.getElementById('btnEjecutar');
+        const spinner = document.getElementById('spinnerEjecutar');
+        const textoBtn = document.getElementById('textoBtnEjecutar');
+        const barraContenedor = document.getElementById('barraContenedor');
+        const barra = document.getElementById('barraProgreso');
+        const textoProgreso = document.getElementById('textoProgreso');
+
+        btn.disabled = true;
+        spinner.classList.add('activo');
+        textoBtn.textContent = 'PROCESANDO...';
+        barraContenedor.classList.add('activo');
+        textoProgreso.classList.add('activo');
+
+        // Poner todos los modelos activos en estado "Procesando"
+        modelosActivos.forEach(modelo => {
+            metricasActuales[modelo.id].estado = 'Procesando';
+            metricasActuales[modelo.id].accuracy = null;
+            metricasActuales[modelo.id].f1 = null;
+            metricasActuales[modelo.id].rmse = null;
+        });
+        renderizarTablaMetricas();
+
+        // Simular ejecución secuencial de cada modelo activo
+        let indice = 0;
+        const total = modelosActivos.length;
+
+        const intervalo = setInterval(() => {
+            if (indice < total) {
+                const modelo = modelosActivos[indice];
+
+                // Generar métricas simuladas realistas según el tipo de modelo
+                if (modelo.tipo === 'Clasificacion') {
+                    metricasActuales[modelo.id].accuracy = aleatorio(0.58, 0.94);
+                    metricasActuales[modelo.id].f1 = aleatorio(0.55, 0.93);
+                } else {
+                    metricasActuales[modelo.id].rmse = aleatorio(1.2, 8.5);
+                }
+
+                metricasActuales[modelo.id].estado = 'Completado';
+
+                indice++;
+
+                const porcentaje = Math.round((indice / total) * 100);
+                barra.style.width = porcentaje + '%';
+                textoProgreso.textContent = `Procesando ${indice} / ${total} modelos... (${porcentaje}%)`;
+
+                renderizarTablaMetricas();
+            } else {
+                clearInterval(intervalo);
+
+                // Restaurar botón
+                btn.disabled = false;
+                spinner.classList.remove('activo');
+                textoBtn.textContent = '▶ EJECUTAR ANÁLISIS';
+                textoProgreso.textContent = `Análisis finalizado: ${total} modelo(s) procesados correctamente.`;
+
+                // Ocultar barra después de un breve momento
+                setTimeout(() => {
+                    barraContenedor.classList.remove('activo');
+                    barra.style.width = '0%';
+                }, 1500);
+            }
+        }, 450); // tiempo de "procesamiento" simulado por modelo
+    }
+
+    // ============================================================
+    // INICIALIZACIÓN GENERAL DE LA CONSOLA
+    // ============================================================
+    document.addEventListener('DOMContentLoaded', () => {
+        renderizarChecks();
+        renderizarAcordeones();
+        inicializarMetricas();
+        renderizarTablaMetricas();
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>InvestAI — Análisis NLP de Noticias</title>
+
+<!-- Inter desde Google Fonts — misma dependencia que el resto del sistema -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+<!-- Chart.js via CDN — requerido por las restricciones del prompt -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+<style>
+/* =========================================================
+   VARIABLES Y RESET — misma paleta que investai_auth.html,
+   investai_svc.html, investai_lstm.html
+   ========================================================= */
+:root {
+  --azul: #1F3864;
+  --azul-hover: #2E5395;
+  --dorado: #C5961A;
+  --dorado-bg: rgba(197,150,26,0.14);
+  --blanco: #FFFFFF;
+  --fondo: #0D1B33;
+  --panel: #122548;
+  --borde: #1F3864;
+  --texto: #E2E8F3;
+  --suave: #6B7A99;
+  --r: 10px;
+  --rl: 14px;
+  --sh-s: 0 1px 4px rgba(0,0,0,.35);
+  --sh-m: 0 4px 18px rgba(0,0,0,.45);
+  --bullish: #26A69A;
+  --bullish-bg: rgba(38,166,154,0.14);
+  --bearish: #EF5350;
+  --bearish-bg: rgba(239,83,80,0.14);
+  --neutral: #78909C;
+  --neutral-bg: rgba(120,144,156,0.14);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--fondo);
+  color: var(--texto);
+  font-size: 14px;
+  line-height: 1.4;
+  min-height: 100vh;
+}
+
+/* =========================================================
+   OVERLAY DE CARGA — mismo patrón que SVC y LSTM
+   ========================================================= */
+#app-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--fondo);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 16px;
+  transition: opacity .5s;
+}
+#app-overlay.oculto { opacity: 0; pointer-events: none; }
+
+.ov-logo {
+  font-size: 22px; font-weight: 800; color: var(--texto);
+  display: flex; align-items: center; gap: 10px;
+}
+.ov-logo em { color: var(--dorado); font-style: normal; }
+.ov-barra { width: 220px; height: 4px; background: var(--borde); border-radius: 4px; overflow: hidden; }
+.ov-progreso {
+  height: 100%;
+  background: linear-gradient(90deg, var(--azul), var(--dorado));
+  border-radius: 4px;
+  animation: progreso 2.2s ease-in-out forwards;
+}
+@keyframes progreso { from { width:0; } to { width:100%; } }
+.ov-texto { font-size: 12px; color: var(--suave); letter-spacing: 0.4px; }
+
+/* =========================================================
+   NAVBAR — misma barra que los demás módulos
+   ========================================================= */
+.navbar {
+  background: var(--azul);
+  padding: 0 24px;
+  height: 54px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 12px rgba(31,56,100,.25);
+}
+
+.nav-brand {
+  font-size: 17px; font-weight: 800; color: var(--blanco);
+  display: flex; align-items: center; gap: 10px;
+  text-decoration: none;
+}
+.nav-brand em { color: var(--dorado); font-style: normal; }
+
+.nav-badge {
+  background: var(--dorado); color: var(--azul);
+  font-size: 10px; font-weight: 700;
+  padding: 2px 8px; border-radius: 20px; letter-spacing: 0.5px;
+}
+
+.nav-right {
+  display: flex; align-items: center; gap: 12px;
+}
+
+/* Selector de ticker en la navbar */
+.nav-select {
+  background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
+  color: var(--blanco); border-radius: 7px;
+  padding: 5px 10px; font-size: 13px; font-family: inherit;
+  cursor: pointer; outline: none;
+  transition: background .2s;
+}
+.nav-select:hover { background: rgba(255,255,255,.2); }
+.nav-select option { background: var(--azul); color: var(--blanco); }
+
+/* Indicador de conexión */
+.nav-conn {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: rgba(255,255,255,.8);
+}
+.dot-conn {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #4CAF50;
+  animation: pulse-dot 2s infinite;
+}
+@keyframes pulse-dot {
+  0%,100% { opacity:1; } 50% { opacity:.4; }
+}
+
+/* =========================================================
+   LAYOUT PRINCIPAL
+   ========================================================= */
+.layout {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 20px 16px 40px;
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  grid-template-rows: auto auto 1fr;
+  gap: 16px;
+}
+
+/* Cabecera de página */
+.page-header {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px;
+}
+
+.page-title {
+  font-size: 20px; font-weight: 700; color: var(--texto);
+  display: flex; align-items: center; gap: 10px;
+}
+.page-title svg { flex-shrink: 0; }
+
+.page-subtitle { font-size: 13px; color: var(--suave); margin-top: 2px; }
+
+/* =========================================================
+   FILTROS
+   ========================================================= */
+.filtros-bar {
+  grid-column: 1 / -1;
+  background: var(--panel);
+  border: 1px solid var(--borde);
+  border-radius: var(--rl);
+  padding: 14px 18px;
+  display: flex; align-items: center; gap: 14px;
+  flex-wrap: wrap;
+  box-shadow: var(--sh-s);
+}
+
+.filtro-grupo {
+  display: flex; align-items: center; gap: 8px;
+}
+
+.filtro-label {
+  font-size: 12px; font-weight: 600; color: var(--suave);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.filtro-select, .filtro-input {
+  border: 1px solid var(--borde);
+  border-radius: 7px;
+  padding: 7px 12px;
+  font-family: inherit; font-size: 13px;
+  color: var(--texto); background: var(--fondo);
+  outline: none; transition: border-color .2s;
+}
+.filtro-select:focus, .filtro-input:focus { border-color: var(--texto); }
+.filtro-input { width: 130px; }
+
+.btn-filtrar {
+  background: var(--azul); color: var(--blanco);
+  border: none; border-radius: 7px;
+  padding: 7px 18px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: background .2s;
+  display: flex; align-items: center; gap: 6px;
+}
+.btn-filtrar:hover { background: var(--azul-hover); }
+
+.btn-reset {
+  background: transparent; color: var(--suave);
+  border: 1px solid var(--borde); border-radius: 7px;
+  padding: 7px 14px; font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all .2s;
+}
+.btn-reset:hover { border-color: var(--texto); color: var(--texto); }
+
+/* Filtro de sentimiento (chips) */
+.chip-grupo {
+  display: flex; gap: 6px; flex-wrap: wrap;
+}
+
+.chip {
+  padding: 5px 12px; border-radius: 20px;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer; border: 2px solid transparent;
+  transition: all .2s; user-select: none;
+}
+.chip.bullish  { background: var(--bullish-bg); color: var(--bullish); }
+.chip.bearish  { background: var(--bearish-bg); color: var(--bearish); }
+.chip.neutral  { background: var(--neutral-bg); color: var(--neutral); }
+.chip.all      { background: var(--dorado-bg);  color: var(--dorado);  }
+.chip.activo   { border-color: currentColor; }
+
+/* =========================================================
+   COLUMNA IZQUIERDA — FEED DE NOTICIAS
+   ========================================================= */
+.col-feed {
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+.feed-stats-row {
+  display: flex; gap: 10px;
+}
+
+/* Tarjeta de noticia */
+.noticia-card {
+  background: var(--panel);
+  border: 1px solid var(--borde);
+  border-left: 4px solid var(--borde);
+  border-radius: var(--r);
+  padding: 14px 16px;
+  box-shadow: var(--sh-s);
+  transition: box-shadow .2s, transform .15s;
+  cursor: default;
+}
+.noticia-card:hover { box-shadow: var(--sh-m); transform: translateY(-1px); }
+
+.noticia-card.bullish { border-left-color: var(--bullish); }
+.noticia-card.bearish { border-left-color: var(--bearish); }
+.noticia-card.neutral { border-left-color: var(--neutral); }
+
+.noticia-header {
+  display: flex; justify-content: space-between;
+  align-items: flex-start; gap: 10px;
+  margin-bottom: 6px;
+}
+
+.noticia-titulo {
+  font-size: 14px; font-weight: 700; color: var(--texto);
+  line-height: 1.35;
+  flex: 1;
+}
+
+.sentimiento-badge {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+  flex-shrink: 0;
+}
+.sentimiento-badge.bullish { background: var(--bullish-bg); color: var(--bullish); }
+.sentimiento-badge.bearish { background: var(--bearish-bg); color: var(--bearish); }
+.sentimiento-badge.neutral { background: var(--neutral-bg); color: var(--neutral); }
+
+.sentimiento-badge svg { width: 12px; height: 12px; }
+
+.noticia-meta {
+  display: flex; gap: 12px; align-items: center;
+  margin-bottom: 8px;
+  font-size: 12px; color: var(--suave);
+}
+.noticia-fuente { font-weight: 600; }
+
+.noticia-resumen {
+  font-size: 13px; color: var(--suave);
+  line-height: 1.5; margin-bottom: 10px;
+}
+
+.noticia-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px;
+}
+
+/* Scores VADER */
+.vader-scores {
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+
+.vader-pill {
+  background: var(--fondo);
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px; color: var(--suave);
+  display: flex; align-items: center; gap: 4px;
+}
+.vader-pill span { font-weight: 700; color: var(--texto); }
+
+/* Score compound resaltado */
+.compound-score {
+  font-size: 13px; font-weight: 800;
+  padding: 3px 10px; border-radius: 7px;
+}
+.compound-score.bullish { background: var(--bullish-bg); color: var(--bullish); }
+.compound-score.bearish { background: var(--bearish-bg); color: var(--bearish); }
+.compound-score.neutral { background: var(--neutral-bg); color: var(--neutral); }
+
+/* Ticker tag */
+.ticker-tag {
+  background: var(--dorado-bg);
+  color: var(--dorado);
+  border: 1px solid rgba(197,150,26,.3);
+  border-radius: 5px;
+  font-size: 11px; font-weight: 700;
+  padding: 2px 7px;
+}
+
+/* LLM GPT badge */
+.llm-badge {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 11px; color: #7C3AED; font-weight: 600;
+  background: rgba(124,58,237,0.14); border-radius: 5px;
+  padding: 2px 8px;
+}
+
+/* =========================================================
+   COLUMNA DERECHA — PANELES ANALÍTICOS
+   ========================================================= */
+.col-derecha {
+  display: flex; flex-direction: column; gap: 14px;
+}
+
+/* Tarjeta de panel genérica */
+.panel-card {
+  background: var(--panel);
+  border: 1px solid var(--borde);
+  border-radius: var(--rl);
+  padding: 16px;
+  box-shadow: var(--sh-s);
+}
+
+.panel-titulo {
+  font-size: 13px; font-weight: 700; color: var(--texto);
+  display: flex; align-items: center; gap: 7px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--borde);
+}
+.panel-titulo svg { flex-shrink: 0; }
+
+/* ---- Gauge de velocímetro SVG ---- */
+.gauge-wrapper {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 8px 0;
+}
+
+.gauge-svg { width: 200px; height: 120px; overflow: visible; }
+
+.gauge-lectura {
+  font-size: 26px; font-weight: 800; color: var(--texto);
+  text-align: center;
+}
+.gauge-lectura small {
+  display: block; font-size: 12px; font-weight: 500; color: var(--suave);
+  margin-top: 2px;
+}
+
+.gauge-etiqueta {
+  font-size: 15px; font-weight: 800;
+  padding: 5px 18px; border-radius: 20px;
+}
+.gauge-etiqueta.bullish { background: var(--bullish-bg); color: var(--bullish); }
+.gauge-etiqueta.bearish { background: var(--bearish-bg); color: var(--bearish); }
+.gauge-etiqueta.neutral { background: var(--neutral-bg); color: var(--neutral); }
+
+/* ---- Mini stats de distribución ---- */
+.dist-row {
+  display: flex; flex-direction: column; gap: 8px;
+}
+
+.dist-item {
+  display: flex; align-items: center; gap: 8px;
+}
+
+.dist-label {
+  font-size: 12px; font-weight: 600;
+  width: 60px; flex-shrink: 0;
+}
+.dist-label.bullish { color: var(--bullish); }
+.dist-label.bearish { color: var(--bearish); }
+.dist-label.neutral { color: var(--neutral); }
+
+.dist-barra-bg {
+  flex: 1; height: 10px; background: var(--fondo);
+  border-radius: 5px; overflow: hidden;
+}
+.dist-barra-fill {
+  height: 100%; border-radius: 5px;
+  transition: width 1s ease;
+}
+.dist-barra-fill.bullish { background: var(--bullish); }
+.dist-barra-fill.bearish { background: var(--bearish); }
+.dist-barra-fill.neutral { background: var(--neutral); }
+
+.dist-pct {
+  font-size: 12px; font-weight: 700; color: var(--texto);
+  width: 34px; text-align: right; flex-shrink: 0;
+}
+
+/* ---- Gráfico Chart.js wrapper ---- */
+.chart-wrapper {
+  position: relative; height: 180px;
+}
+
+/* ---- Resumen de modelo ---- */
+.modelo-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--borde);
+  font-size: 12px;
+}
+.modelo-row:last-child { border-bottom: none; }
+.modelo-nombre { color: var(--suave); }
+.modelo-valor  { font-weight: 700; color: var(--texto); }
+.modelo-tag {
+  font-size: 10px; font-weight: 700;
+  padding: 2px 7px; border-radius: 4px;
+}
+.modelo-tag.bullish { background: var(--bullish-bg); color: var(--bullish); }
+.modelo-tag.bearish { background: var(--bearish-bg); color: var(--bearish); }
+.modelo-tag.neutral { background: var(--neutral-bg); color: var(--neutral); }
+
+/* =========================================================
+   RESPONSIVO — Mobile
+   ========================================================= */
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  .col-derecha {
+    order: -1; /* Paneles arriba en mobile */
+  }
+}
+
+@media (max-width: 600px) {
+  .navbar { padding: 0 12px; }
+  .nav-brand { font-size: 15px; }
+  .filtros-bar { flex-direction: column; align-items: flex-start; }
+  .noticia-header { flex-direction: column; }
+  .sentimiento-badge { align-self: flex-start; }
+}
+
+/* =========================================================
+   ANIMACIONES DE ENTRADA
+   ========================================================= */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.noticia-card {
+  animation: fadeUp .35s ease both;
+}
+
+/* Delay escalonado para las tarjetas */
+.noticia-card:nth-child(1) { animation-delay: .05s; }
+.noticia-card:nth-child(2) { animation-delay: .10s; }
+.noticia-card:nth-child(3) { animation-delay: .15s; }
+.noticia-card:nth-child(4) { animation-delay: .20s; }
+.noticia-card:nth-child(5) { animation-delay: .25s; }
+.noticia-card:nth-child(6) { animation-delay: .30s; }
+.noticia-card:nth-child(7) { animation-delay: .35s; }
+.noticia-card:nth-child(8) { animation-delay: .40s; }
+.noticia-card:nth-child(9) { animation-delay: .45s; }
+.noticia-card:nth-child(10) { animation-delay: .50s; }
+
+/* Contador de resultados */
+.resultados-contador {
+  font-size: 12px; color: var(--suave);
+  margin-bottom: 4px;
+}
+</style>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          navy: { deep: '#0A1428', base: '#0D1B33', card: '#122548', border: '#1F3864' },
+          teal: '#26A69A', mint: '#4ADE80', gold: '#C5961A', sky: '#3B82F6', coral: '#EF5350',
+          ink: { 100: '#E2E8F3', 300: '#9FB0CE', 500: '#6B7A99' }
+        },
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+      }
+    }
+  };
+</script>
+<script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+<div class="w-full bg-navy-deep border-b border-navy-border/60 sticky top-0 z-[999]">
+  <div class="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3 overflow-x-auto custom-scroll">
+    <a href="home.html" class="flex items-center gap-2 shrink-0 mr-1">
+      <svg width="24" height="24" viewBox="0 0 44 44" class="shrink-0" role="img" aria-label="Logo InvestAI">
+        <rect width="44" height="44" rx="12" fill="#122548"/>
+        <line x1="14" y1="10" x2="14" y2="34" stroke="#26A69A" stroke-width="2"/>
+        <rect x="10" y="16" width="8" height="10" rx="1.5" fill="#26A69A"/>
+        <line x1="22" y1="6" x2="22" y2="30" stroke="#4ADE80" stroke-width="2"/>
+        <rect x="18" y="13" width="8" height="11" rx="1.5" fill="#4ADE80"/>
+        <line x1="30" y1="14" x2="30" y2="38" stroke="#C5961A" stroke-width="2"/>
+        <rect x="26" y="20" width="8" height="9" rx="1.5" fill="#C5961A"/>
+      </svg>
+      <span class="font-extrabold text-white text-sm tracking-tight whitespace-nowrap">InvestAI</span>
+    </a>
+    <nav class="flex items-center gap-1.5 flex-nowrap">
+      <a href="home.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="home" class="w-3.5 h-3.5"></i>Portal</a>
+      <a href="modulo_mercado.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="candlestick-chart" class="w-3.5 h-3.5"></i>Dashboard Mercado</a>
+      <a href="modulo_svc.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="shield-check" class="w-3.5 h-3.5"></i>Clasificador SVC</a>
+      <a href="investai_modelos_ia.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="cpu" class="w-3.5 h-3.5"></i>Modelos de IA</a>
+      <a href="investai_lstm.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="trending-up" class="w-3.5 h-3.5"></i>LSTM Regressor</a>
+      <a href="investai_nlp.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors bg-teal text-navy-deep"><i data-lucide="newspaper" class="w-3.5 h-3.5"></i>NLP Noticias</a>
+      <a href="investai_estrategias.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="target" class="w-3.5 h-3.5"></i>Estrategias</a>
+      <a href="investai_portafolio.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="briefcase" class="w-3.5 h-3.5"></i>Portafolio</a>
+      <a href="investai_reportes_backtesting.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="bar-chart-2" class="w-3.5 h-3.5"></i>Backtesting</a>
+      <a href="investai_dashboard_completo.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i>Dashboard Resultados</a>
+      <a href="investai_broker.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="send" class="w-3.5 h-3.5"></i>Envio a Broker</a>
+    </nav>
+  </div>
+</div>
+<script>window.addEventListener('DOMContentLoaded', function(){ if (window.lucide) lucide.createIcons(); });</script>
+
+
+<!-- =========================================================
+     OVERLAY DE CARGA
+     ========================================================= -->
+<div id="app-overlay">
+  <div class="ov-logo">
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="7" fill="#1F3864"/>
+      <polyline points="4,20 10,12 15,16 24,7" stroke="#C5961A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </svg>
+    Invest<em>AI</em>
+  </div>
+  <div class="ov-barra"><div class="ov-progreso"></div></div>
+  <p class="ov-texto">Iniciando módulo NLP — VADER + GPT…</p>
+</div>
+
+<!-- =========================================================
+     NAVBAR
+     ========================================================= -->
+<nav class="navbar">
+  <a class="nav-brand" href="#">
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+      <rect width="22" height="22" rx="5" fill="#C5961A"/>
+      <polyline points="3,16 8,9 12,13 19,5" stroke="#1F3864" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </svg>
+    Invest<em>AI</em>
+  </a>
+  <div class="nav-right">
+    <select class="nav-select" id="nav-ticker-select">
+      <option value="AAPL">AAPL</option>
+      <option value="MSFT">MSFT</option>
+      <option value="GOOGL">GOOGL</option>
+      <option value="TSLA">TSLA</option>
+      <option value="NVDA">NVDA</option>
+      <option value="BTC-USD">BTC-USD</option>
+      <option value="ETH-USD">ETH-USD</option>
+    </select>
+    <span class="nav-badge">NLP</span>
+    <div class="nav-conn">
+      <div class="dot-conn"></div>
+      <span>VADER v3.3 · GPT-4o</span>
+    </div>
+  </div>
+</nav>
+
+<!-- =========================================================
+     LAYOUT PRINCIPAL
+     ========================================================= -->
+<div class="layout">
+
+  <!-- CABECERA DE PÁGINA -->
+  <div class="page-header">
+    <div>
+      <div class="page-title">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M3 4h14M3 8h10M3 12h12M3 16h8" stroke="#1F3864" stroke-width="1.8" stroke-linecap="round"/>
+          <circle cx="16" cy="14" r="4" fill="#C5961A" opacity=".3"/>
+          <path d="M14.5 14h3M16 12.5v3" stroke="#C5961A" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        Análisis de Sentimiento — NLP Financiero
+      </div>
+      <div class="page-subtitle">VADER SentimentIntensityAnalyzer · LLM GPT-4o como clasificador complementario · Datos simulados</div>
+    </div>
+  </div>
+
+  <!-- BARRA DE FILTROS -->
+  <div class="filtros-bar" style="grid-column:1/-1">
+    <!-- Ticker -->
+    <div class="filtro-grupo">
+      <span class="filtro-label">Ticker</span>
+      <select class="filtro-select" id="filtro-ticker">
+        <option value="TODOS">Todos</option>
+        <option value="AAPL">AAPL</option>
+        <option value="MSFT">MSFT</option>
+        <option value="GOOGL">GOOGL</option>
+        <option value="TSLA">TSLA</option>
+        <option value="NVDA">NVDA</option>
+        <option value="BTC-USD">BTC-USD</option>
+        <option value="ETH-USD">ETH-USD</option>
+      </select>
+    </div>
+    <!-- Fecha desde -->
+    <div class="filtro-grupo">
+      <span class="filtro-label">Desde</span>
+      <input type="date" class="filtro-input" id="filtro-desde" value="2026-06-01" />
+    </div>
+    <!-- Fecha hasta -->
+    <div class="filtro-grupo">
+      <span class="filtro-label">Hasta</span>
+      <input type="date" class="filtro-input" id="filtro-hasta" value="2026-06-12" />
+    </div>
+    <!-- Sentimiento chips -->
+    <div class="filtro-grupo">
+      <span class="filtro-label">Sentimiento</span>
+      <div class="chip-grupo" id="chips-sentimiento">
+        <div class="chip all activo" data-sent="TODOS">Todos</div>
+        <div class="chip bullish" data-sent="BULLISH">▲ BULLISH</div>
+        <div class="chip bearish" data-sent="BEARISH">▼ BEARISH</div>
+        <div class="chip neutral" data-sent="NEUTRAL">● NEUTRAL</div>
+      </div>
+    </div>
+    <!-- Botones -->
+    <button class="btn-filtrar" id="btn-aplicar-filtros">
+      <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+        <circle cx="6" cy="6" r="4.5" stroke="#fff" stroke-width="1.5"/>
+        <path d="M10 10l3 3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      Aplicar
+    </button>
+    <button class="btn-reset" id="btn-reset-filtros">Restablecer</button>
+  </div>
+
+  <!-- COLUMNA IZQUIERDA: FEED DE NOTICIAS -->
+  <div class="col-feed">
+    <div class="resultados-contador" id="contador-resultados">Mostrando 15 de 15 noticias</div>
+    <div id="feed-noticias">
+      <!-- Generado dinámicamente por JavaScript -->
+    </div>
+  </div>
+
+  <!-- COLUMNA DERECHA: PANELES ANALÍTICOS -->
+  <div class="col-derecha">
+
+    <!-- PANEL 1: Velocímetro de sentimiento agregado -->
+    <div class="panel-card">
+      <div class="panel-titulo">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <circle cx="8" cy="8" r="6.5" stroke="#1F3864" stroke-width="1.4"/>
+          <path d="M8 8 L12 4" stroke="#C5961A" stroke-width="1.8" stroke-linecap="round"/>
+          <circle cx="8" cy="8" r="1.5" fill="#1F3864"/>
+        </svg>
+        Sentimiento Agregado del Mercado
+      </div>
+      <div class="gauge-wrapper">
+        <svg class="gauge-svg" viewBox="0 0 200 115" xmlns="http://www.w3.org/2000/svg">
+          <!-- Arco de fondo -->
+          <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#E2E8F3" stroke-width="18" stroke-linecap="round"/>
+          <!-- Zona BEARISH -->
+          <path d="M 20 100 A 80 80 0 0 1 80 28" fill="none" stroke="#EF5350" stroke-width="18" stroke-linecap="round" opacity=".7"/>
+          <!-- Zona NEUTRAL -->
+          <path d="M 80 28 A 80 80 0 0 1 120 28" fill="none" stroke="#78909C" stroke-width="18" stroke-linecap="round" opacity=".6"/>
+          <!-- Zona BULLISH -->
+          <path d="M 120 28 A 80 80 0 0 1 180 100" fill="none" stroke="#26A69A" stroke-width="18" stroke-linecap="round" opacity=".7"/>
+          <!-- Aguja -->
+          <line id="gauge-needle" x1="100" y1="100" x2="100" y2="30"
+            stroke="#1F3864" stroke-width="3" stroke-linecap="round"
+            transform-origin="100 100"
+            style="transition: transform 1.5s cubic-bezier(.4,0,.2,1)"/>
+          <circle cx="100" cy="100" r="7" fill="#1F3864"/>
+          <circle cx="100" cy="100" r="3.5" fill="#C5961A"/>
+          <!-- Etiquetas de zona -->
+          <text x="18" y="115" font-size="9" fill="#EF5350" font-weight="700" font-family="Inter,sans-serif">BEARISH</text>
+          <text x="83" y="22" font-size="9" fill="#78909C" font-weight="700" font-family="Inter,sans-serif">NEUTRAL</text>
+          <text x="140" y="115" font-size="9" fill="#26A69A" font-weight="700" font-family="Inter,sans-serif">BULLISH</text>
+        </svg>
+        <div class="gauge-lectura" id="gauge-valor">+0.18
+          <small>Compound promedio</small>
+        </div>
+        <div class="gauge-etiqueta bullish" id="gauge-etiqueta">▲ BULLISH</div>
+      </div>
+    </div>
+
+    <!-- PANEL 2: Distribución del día (gráfico barras Chart.js) -->
+    <div class="panel-card">
+      <div class="panel-titulo">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <rect x="2" y="8" width="3" height="6" rx="1" fill="#26A69A"/>
+          <rect x="6.5" y="5" width="3" height="9" rx="1" fill="#78909C"/>
+          <rect x="11" y="10" width="3" height="4" rx="1" fill="#EF5350"/>
+        </svg>
+        Distribución de Sentimiento — Hoy
+      </div>
+      <div class="chart-wrapper">
+        <canvas id="chart-distribucion"></canvas>
+      </div>
+    </div>
+
+    <!-- PANEL 3: Mini distribución con barras -->
+    <div class="panel-card">
+      <div class="panel-titulo">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M2 14l4-6 3 3 5-8" stroke="#1F3864" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+        Resumen Visual por Categoría
+      </div>
+      <div class="dist-row" id="dist-row">
+        <!-- Generado dinámicamente -->
+      </div>
+    </div>
+
+    <!-- PANEL 4: Modelos utilizados -->
+    <div class="panel-card">
+      <div class="panel-titulo">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <rect x="2" y="2" width="5" height="5" rx="1.5" fill="#1F3864" opacity=".7"/>
+          <rect x="9" y="2" width="5" height="5" rx="1.5" fill="#C5961A" opacity=".7"/>
+          <rect x="2" y="9" width="5" height="5" rx="1.5" fill="#26A69A" opacity=".7"/>
+          <rect x="9" y="9" width="5" height="5" rx="1.5" fill="#7C3AED" opacity=".7"/>
+        </svg>
+        Modelos de Clasificación — RF-07 &amp; RF-10
+      </div>
+      <div id="panel-modelos">
+        <div class="modelo-row">
+          <span class="modelo-nombre">VADER Compound (prom.)</span>
+          <span class="modelo-valor" id="vader-prom">+0.18</span>
+          <span class="modelo-tag bullish" id="vader-tag">BULLISH</span>
+        </div>
+        <div class="modelo-row">
+          <span class="modelo-nombre">GPT-4o LLM (consenso)</span>
+          <span class="modelo-valor" id="gpt-prom">+0.21</span>
+          <span class="modelo-tag bullish" id="gpt-tag">BULLISH</span>
+        </div>
+        <div class="modelo-row">
+          <span class="modelo-nombre">Acuerdo modelos</span>
+          <span class="modelo-valor">87%</span>
+          <span class="modelo-tag bullish">ALTO</span>
+        </div>
+        <div class="modelo-row">
+          <span class="modelo-nombre">Noticias analizadas</span>
+          <span class="modelo-valor" id="total-noticias">15</span>
+          <span class="modelo-tag neutral">HOY</span>
+        </div>
+        <div class="modelo-row">
+          <span class="modelo-nombre">Fuentes consultadas</span>
+          <span class="modelo-valor">6</span>
+          <span class="modelo-tag neutral">ACTIVAS</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- fin col-derecha -->
+
+</div><!-- fin layout -->
+
+<script>
+/* =========================================================
+   DATOS SIMULADOS — 15 noticias financieras en español
+   (simulan salida de VADER SentimentIntensityAnalyzer + GPT-4o)
+   ========================================================= */
+const NOTICIAS = [
+  {
+    id: 1,
+    titulo: "Apple supera estimaciones con ingresos de $95,300 millones en Q2 2026, impulsado por servicios y Vision Pro",
+    fuente: "Reuters Finanzas",
+    fecha: "2026-06-12",
+    resumen: "Apple reportó resultados que superaron las expectativas de Wall Street por tercer trimestre consecutivo. Los ingresos del segmento de servicios alcanzaron $25,400 millones, un nuevo récord histórico. El CEO Tim Cook señaló que Vision Pro continúa abriendo nuevos mercados en productividad empresarial.",
+    ticker: "AAPL",
+    sentimiento: "BULLISH",
+    vader: { pos: 0.312, neg: 0.045, neu: 0.643, compound: 0.87 },
+    gpt4o: "BULLISH",
+    acuerdo: true
+  },
+  {
+    id: 2,
+    titulo: "Nvidia anuncia chip H200 Ultra con 40% más rendimiento; la acción sube 6% en pre-market",
+    fuente: "Bloomberg Tecnología",
+    fecha: "2026-06-12",
+    resumen: "Nvidia presentó el procesador H200 Ultra orientado a centros de datos de IA de próxima generación. La demanda superó la oferta en las primeras horas de anuncio. Analistas de Goldman Sachs elevaron el precio objetivo a $1,250 por acción.",
+    ticker: "NVDA",
+    sentimiento: "BULLISH",
+    vader: { pos: 0.389, neg: 0.021, neu: 0.590, compound: 0.93 },
+    gpt4o: "BULLISH",
+    acuerdo: true
+  },
+  {
+    id: 3,
+    titulo: "Tesla recorta producción en Gigafactory Berlín ante caída de demanda en Europa; acciones caen 4.2%",
+    fuente: "El Financiero",
+    fecha: "2026-06-11",
+    resumen: "Tesla reducirá temporalmente los turnos de producción en su planta alemana tras registrar una caída en los pedidos del modelo Y en el mercado europeo. El CEO Elon Musk descartó una crisis estructural pero reconoció presión competitiva de BYD y Volkswagen.",
+    ticker: "TSLA",
+    sentimiento: "BEARISH",
+    vader: { pos: 0.072, neg: 0.281, neu: 0.647, compound: -0.74 },
+    gpt4o: "BEARISH",
+    acuerdo: true
+  },
+  {
+    id: 4,
+    titulo: "Microsoft consolida liderazgo en nube con Azure creciendo 35% interanual; supera a AWS en segmento empresarial",
+    fuente: "WSJ Mercados",
+    fecha: "2026-06-11",
+    resumen: "Microsoft reportó que Azure creció 35% en el último trimestre, superando las proyecciones del consenso. La integración de Copilot en el ecosistema 365 es señalada como diferenciador clave. La empresa elevaría su dividendo trimestral en un 12%.",
+    ticker: "MSFT",
+    sentimiento: "BULLISH",
+    vader: { pos: 0.345, neg: 0.031, neu: 0.624, compound: 0.82 },
+    gpt4o: "BULLISH",
+    acuerdo: true
+  },
+  {
+    id: 5,
+    titulo: "Bitcoin consolida soporte en $105,000 tras semana volátil; mercado evalúa próximo halving en 2028",
+    fuente: "CoinDesk Español",
+    fecha: "2026-06-12",
+    resumen: "Bitcoin encontró soporte técnico en la zona de $105,000 luego de una semana de alta volatilidad. Los inversores institucionales mantienen posiciones largas según datos on-chain. El próximo halving, estimado para 2028, genera expectativas positivas de largo plazo.",
+    ticker: "BTC-USD",
+    sentimiento: "NEUTRAL",
+    vader: { pos: 0.158, neg: 0.142, neu: 0.700, compound: 0.04 },
+    gpt4o: "NEUTRAL",
+    acuerdo: true
+  },
+  {
+    id: 6,
+    titulo: "Reguladores de la UE imponen multa récord de €4,500M a Google por prácticas monopolísticas en búsqueda",
+    fuente: "FT Mercados",
+    fecha: "2026-06-10",
+    resumen: "La Comisión Europea emitió la multa más grande de su historia contra Alphabet por abusar de su posición dominante en el mercado de búsqueda web. La empresa apelará la decisión. Analistas estiman impacto limitado en flujo de caja operativo pero advierten riesgo regulatorio creciente.",
+    ticker: "GOOGL",
+    sentimiento: "BEARISH",
+    vader: { pos: 0.048, neg: 0.329, neu: 0.623, compound: -0.79 },
+    gpt4o: "BEARISH",
+    acuerdo: true
+  },
+  {
+    id: 7,
+    titulo: "Fed mantiene tasas sin cambio; Powell señala posible recorte en septiembre si inflación continúa cediendo",
+    fuente: "Reuters Economía",
+    fecha: "2026-06-12",
+    resumen: "La Reserva Federal de EE.UU. mantuvo las tasas de interés en el rango 4.25–4.50% durante su reunión de junio. El presidente Jerome Powell indicó que los datos de inflación son alentadores pero que se requiere mayor evidencia antes de iniciar recortes. Los mercados descontaron 2 recortes para fin de año.",
+    ticker: "AAPL",
+    sentimiento: "NEUTRAL",
+    vader: { pos: 0.172, neg: 0.105, neu: 0.723, compound: 0.11 },
+    gpt4o: "NEUTRAL",
+    acuerdo: true
+  },
+  {
+    id: 8,
+    titulo: "Ethereum completa actualización Pectra con éxito; gas fees caen 60% y la red procesa nuevo máximo de transacciones",
+    fuente: "The Block",
+    fecha: "2026-06-09",
+    resumen: "La red Ethereum ejecutó con éxito la actualización Pectra, que introdujo mejoras en la capa de ejecución y redujo significativamente las comisiones de transacción. El precio de ETH respondió con una alza del 8% en las 24 horas posteriores al lanzamiento.",
+    ticker: "ETH-USD",
+    sentimiento: "BULLISH",
+    vader: { pos: 0.401, neg: 0.018, neu: 0.581, compound: 0.89 },
+    gpt4o: "BULLISH",
+    acuerdo: true
+  },
+  {
+    id: 9,
+    titulo: "Ventas al por menor en EE.UU. decepcionan por segundo mes consecutivo; sector consumo bajo presión",
+    fuente: "Bloomberg Economía",
+    fecha: "2026-06-10",
+    resumen: "Los datos de ventas minoristas de mayo mostraron una contracción del 0.3% mensual, por debajo del consenso de +0.1%. El deterioro fue generalizado en categorías discrecionales como electrónica y ropa. Los economistas advierten sobre riesgo de recesión técnica si la tendencia continúa.",
+    ticker: "MSFT",
+    sentimiento: "BEARISH",
+    vader: { pos: 0.035, neg: 0.318, neu: 0.647, compound: -0.81 },
+    gpt4o: "BEARISH",
+    acuerdo: true
+  },
+  {
+    id: 10,
+    titulo: "Apple lanza el iPhone 17 Ultra con chip A20 Bionic; analistas prevén super ciclo de renovación",
+    fuente: "MacRumors ES",
+    fecha: "2026-06-08",
+    resumen: "Apple presentó el iPhone 17 Ultra equipado con el procesador A20 Bionic, que según la empresa ofrece el doble de rendimiento de IA frente a la generación anterior. Las preórdenes superaron los 5 millones de unidades en las primeras 12 horas. Analistas de Morgan Stanley elevaron el precio objetivo un 15%.",
+    ticker: "AAPL",
+    sentimiento: "BULLISH",
+    vader: { pos: 0.423, neg: 0.012, neu: 0.565, compound: 0.95 },
+    gpt4o: "BULLISH",
+    acuerdo: true
+  },
+  {
+    id: 11,
+    titulo: "Tesla reporta 0 muertes en Q1 con Autopilot, pero reguladores piden más datos de transparencia",
+    fuente: "Electrek Español",
+    fecha: "2026-06-07",
+    resumen: "Tesla publicó su informe trimestral de seguridad de conducción automatizada, reportando cero fatalidades atribuibles a Autopilot en Q1 2026. Sin embargo, la NHTSA exigió mayor desglose estadístico. El mercado reaccionó de forma moderada dado el contexto regulatorio incierto.",
+    ticker: "TSLA",
+    sentimiento: "NEUTRAL",
+    vader: { pos: 0.201, neg: 0.185, neu: 0.614, compound: 0.03 },
+    gpt4o: "NEUTRAL",
+    acuerdo: true
+  },
+  {
+    id: 12,
+    titulo: "Google DeepMind publica modelo de IA para descubrimiento de fármacos; GOOGL sube 3.1% en sesión",
+    fuente: "Nature Business",
+    fecha: "2026-06-06",
+    resumen: "El laboratorio DeepMind de Alphabet publicó en Nature un modelo de IA capaz de predecir interacciones moleculares con una precisión del 94%, lo que podría acelerar el descubrimiento de nuevos medicamentos. La noticia impulsó la acción GOOGL en una sesión positiva.",
+    ticker: "GOOGL",
+    sentimiento: "BULLISH",
+    vader: { pos: 0.358, neg: 0.042, neu: 0.600, compound: 0.78 },
+    gpt4o: "BULLISH",
+    acuerdo: true
+  },
+  {
+    id: 13,
+    titulo: "Mercados asiáticos caen ante tensiones en estrecho de Taiwán; semiconductores entre los más afectados",
+    fuente: "Reuters Asia",
+    fecha: "2026-06-05",
+    resumen: "Las bolsas de Tokio, Seúl y Taipéi registraron caídas superiores al 2% ante el escalamiento de tensiones geopolíticas en la región. Las acciones de fabricantes de semiconductores como TSMC y Samsung fueron las más golpeadas. El VIX superó los 28 puntos por primera vez en el año.",
+    ticker: "NVDA",
+    sentimiento: "BEARISH",
+    vader: { pos: 0.041, neg: 0.362, neu: 0.597, compound: -0.88 },
+    gpt4o: "BEARISH",
+    acuerdo: true
+  },
+  {
+    id: 14,
+    titulo: "Microsoft anuncia integración de Copilot en Teams con funciones de resumen automático y acción de tareas",
+    fuente: "ZDNet Español",
+    fecha: "2026-06-04",
+    resumen: "Microsoft actualizó Copilot en Teams con capacidades de resumen en tiempo real durante reuniones y asignación automática de tareas basada en los compromisos conversacionales. La función estará disponible para suscriptores de Microsoft 365 Business Premium a partir de julio.",
+    ticker: "MSFT",
+    sentimiento: "BULLISH",
+    vader: { pos: 0.287, neg: 0.038, neu: 0.675, compound: 0.68 },
+    gpt4o: "BULLISH",
+    acuerdo: true
+  },
+  {
+    id: 15,
+    titulo: "Solana registra tiempo de inactividad de 4 horas; comunidad debate estabilidad de la red ante crecimiento",
+    fuente: "Decrypt Español",
+    fecha: "2026-06-03",
+    resumen: "La red Solana experimentó una interrupción de cuatro horas luego de un congestionamiento inusual provocado por un bot de arbitraje. La comunidad debatió sobre las implicaciones para la adopción institucional. El token SOL cayó un 7% durante el incidente antes de recuperar parte de las pérdidas.",
+    ticker: "BTC-USD",
+    sentimiento: "BEARISH",
+    vader: { pos: 0.065, neg: 0.298, neu: 0.637, compound: -0.69 },
+    gpt4o: "BEARISH",
+    acuerdo: true
+  }
+];
+
+/* =========================================================
+   ESTADO DE LA APLICACIÓN
+   ========================================================= */
+let filtroTicker     = "TODOS";
+let filtroSentimiento = "TODOS";
+let filtroDesde      = "2026-06-01";
+let filtroHasta      = "2026-06-12";
+let chartDistrib     = null; // instancia de Chart.js
+
+/* =========================================================
+   UTILIDADES DE RENDERIZADO
+   ========================================================= */
+
+/**
+ * Retorna el ícono SVG según sentimiento
+ */
+function iconoSentimiento(sent) {
+  if (sent === "BULLISH") return `<svg viewBox="0 0 12 12" fill="none"><polyline points="2,9 6,3 10,9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+  if (sent === "BEARISH") return `<svg viewBox="0 0 12 12" fill="none"><polyline points="2,3 6,9 10,3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+  return `<svg viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="3.5" stroke="currentColor" stroke-width="2" fill="none"/></svg>`;
+}
+
+/**
+ * Genera el HTML de una tarjeta de noticia
+ */
+function renderNoticia(n) {
+  const cls = n.sentimiento.toLowerCase();
+  const c   = n.vader.compound;
+  const compStr = (c >= 0 ? "+" : "") + c.toFixed(3);
+
+  return `
+  <div class="noticia-card ${cls}" data-ticker="${n.ticker}" data-sent="${n.sentimiento}" data-fecha="${n.fecha}">
+    <div class="noticia-header">
+      <div class="noticia-titulo">${n.titulo}</div>
+      <div class="sentimiento-badge ${cls}">
+        ${iconoSentimiento(n.sentimiento)}
+        ${n.sentimiento}
+      </div>
+    </div>
+    <div class="noticia-meta">
+      <span class="noticia-fuente">${n.fuente}</span>
+      <span>·</span>
+      <span>${n.fecha}</span>
+      <span class="ticker-tag">${n.ticker}</span>
+    </div>
+    <div class="noticia-resumen">${n.resumen}</div>
+    <div class="noticia-footer">
+      <div class="vader-scores">
+        <div class="vader-pill">pos <span>${n.vader.pos.toFixed(3)}</span></div>
+        <div class="vader-pill">neg <span>${n.vader.neg.toFixed(3)}</span></div>
+        <div class="vader-pill">neu <span>${n.vader.neu.toFixed(3)}</span></div>
+        <div class="compound-score ${cls}">compound: ${compStr}</div>
+      </div>
+      <div class="llm-badge">
+        <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+          <circle cx="5.5" cy="5.5" r="4.5" stroke="#7C3AED" stroke-width="1.2"/>
+          <path d="M3.5 5.5h4M5.5 3.5v4" stroke="#7C3AED" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+        GPT-4o: ${n.gpt4o}
+      </div>
+    </div>
+  </div>`;
+}
+
+/**
+ * Filtra las noticias según los filtros activos
+ */
+function filtrarNoticias() {
+  return NOTICIAS.filter(n => {
+    const okTicker = (filtroTicker === "TODOS" || n.ticker === filtroTicker);
+    const okSent   = (filtroSentimiento === "TODOS" || n.sentimiento === filtroSentimiento);
+    const okDesde  = (!filtroDesde  || n.fecha >= filtroDesde);
+    const okHasta  = (!filtroHasta  || n.fecha <= filtroHasta);
+    return okTicker && okSent && okDesde && okHasta;
+  });
+}
+
+/**
+ * Renderiza el feed con las noticias filtradas
+ */
+function renderFeed() {
+  const filtradas = filtrarNoticias();
+  const feed = document.getElementById("feed-noticias");
+  const contador = document.getElementById("contador-resultados");
+
+  contador.textContent = `Mostrando ${filtradas.length} de ${NOTICIAS.length} noticias`;
+
+  if (filtradas.length === 0) {
+    feed.innerHTML = `<div style="text-align:center;padding:40px;color:var(--suave)">
+      <svg width="36" height="36" viewBox="0 0 36 36" fill="none" style="margin:0 auto 12px;display:block">
+        <circle cx="18" cy="18" r="16" stroke="#33415F" stroke-width="2"/>
+        <path d="M12 18h12M18 12v12" stroke="#33415F" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      No se encontraron noticias con los filtros seleccionados
+    </div>`;
+    return;
+  }
+
+  feed.innerHTML = filtradas.map(renderNoticia).join("");
+  actualizarPaneles(filtradas);
+}
+
+/* =========================================================
+   ACTUALIZACIÓN DE PANELES ANALÍTICOS
+   ========================================================= */
+function actualizarPaneles(noticias) {
+  const total   = noticias.length;
+  const nbull   = noticias.filter(n => n.sentimiento === "BULLISH").length;
+  const nbear   = noticias.filter(n => n.sentimiento === "BEARISH").length;
+  const nneu    = noticias.filter(n => n.sentimiento === "NEUTRAL").length;
+  const pctBull = total ? (nbull / total * 100).toFixed(0) : 0;
+  const pctBear = total ? (nbear / total * 100).toFixed(0) : 0;
+  const pctNeu  = total ? (nneu  / total * 100).toFixed(0) : 0;
+
+  // Compound promedio
+  const promComp = total
+    ? noticias.reduce((s, n) => s + n.vader.compound, 0) / total
+    : 0;
+  const compStr = (promComp >= 0 ? "+" : "") + promComp.toFixed(3);
+
+  // Clasificación del compuesto
+  let sentAgregado = "NEUTRAL";
+  if (promComp >=  0.05) sentAgregado = "BULLISH";
+  if (promComp <= -0.05) sentAgregado = "BEARISH";
+
+  // --- Velocímetro: mapear compound [-1,1] a ángulo [-90°, 90°] ---
+  const angulo = promComp * 90;
+  document.getElementById("gauge-needle").style.transform = `rotate(${angulo}deg)`;
+  document.getElementById("gauge-valor").innerHTML =
+    `${compStr}<small>Compound promedio</small>`;
+  const gEl = document.getElementById("gauge-etiqueta");
+  gEl.textContent  = sentAgregado === "BULLISH" ? "▲ BULLISH"
+                   : sentAgregado === "BEARISH" ? "▼ BEARISH" : "● NEUTRAL";
+  gEl.className    = "gauge-etiqueta " + sentAgregado.toLowerCase();
+
+  // --- Barras de distribución visual ---
+  document.getElementById("dist-row").innerHTML = `
+    <div class="dist-item">
+      <span class="dist-label bullish">BULLISH</span>
+      <div class="dist-barra-bg"><div class="dist-barra-fill bullish" style="width:${pctBull}%"></div></div>
+      <span class="dist-pct">${pctBull}%</span>
+    </div>
+    <div class="dist-item">
+      <span class="dist-label bearish">BEARISH</span>
+      <div class="dist-barra-bg"><div class="dist-barra-fill bearish" style="width:${pctBear}%"></div></div>
+      <span class="dist-pct">${pctBear}%</span>
+    </div>
+    <div class="dist-item">
+      <span class="dist-label neutral">NEUTRAL</span>
+      <div class="dist-barra-bg"><div class="dist-barra-fill neutral" style="width:${pctNeu}%"></div></div>
+      <span class="dist-pct">${pctNeu}%</span>
+    </div>`;
+
+  // --- Chart.js: gráfico de barras horizontales ---
+  const ctx = document.getElementById("chart-distribucion").getContext("2d");
+  if (chartDistrib) chartDistrib.destroy();
+  chartDistrib = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: ["BULLISH", "NEUTRAL", "BEARISH"],
+      datasets: [{
+        label: "Noticias",
+        data: [nbull, nneu, nbear],
+        backgroundColor: ["#26A69A", "#78909C", "#EF5350"],
+        borderColor:     ["#26A69A", "#78909C", "#EF5350"],
+        borderWidth: 1.5,
+        borderRadius: 5,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.x} noticia${ctx.parsed.x !== 1 ? "s" : ""}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: "rgba(255,255,255,0.08)" },
+          ticks: { font: { family: "Inter", size: 11 }, color: "#6B7A99", stepSize: 1 },
+          title: { display: true, text: "Cantidad de noticias", font: { family: "Inter", size: 11 }, color: "#6B7A99" }
+        },
+        y: {
+          grid: { display: false },
+          ticks: { font: { family: "Inter", size: 12, weight: "700" }, color: "#E2E8F3" }
+        }
+      }
+    }
+  });
+
+  // --- Panel modelos ---
+  document.getElementById("vader-prom").textContent = compStr;
+  const gptProm = (promComp * 1.08).toFixed(3);
+  document.getElementById("gpt-prom").textContent = (promComp * 1.08 >= 0 ? "+" : "") + gptProm;
+  document.getElementById("vader-tag").textContent = sentAgregado;
+  document.getElementById("vader-tag").className = "modelo-tag " + sentAgregado.toLowerCase();
+  document.getElementById("gpt-tag").textContent  = sentAgregado;
+  document.getElementById("gpt-tag").className  = "modelo-tag " + sentAgregado.toLowerCase();
+  document.getElementById("total-noticias").textContent = total;
+}
+
+/* =========================================================
+   LÓGICA DE FILTROS
+   ========================================================= */
+
+// Chips de sentimiento
+document.getElementById("chips-sentimiento").addEventListener("click", e => {
+  const chip = e.target.closest(".chip");
+  if (!chip) return;
+  document.querySelectorAll(".chip").forEach(c => c.classList.remove("activo"));
+  chip.classList.add("activo");
+  filtroSentimiento = chip.dataset.sent;
+});
+
+// Botón aplicar
+document.getElementById("btn-aplicar-filtros").addEventListener("click", () => {
+  filtroTicker = document.getElementById("filtro-ticker").value;
+  filtroDesde  = document.getElementById("filtro-desde").value;
+  filtroHasta  = document.getElementById("filtro-hasta").value;
+  // Sincronizar también el selector de la navbar
+  const navSel = document.getElementById("nav-ticker-select");
+  if (filtroTicker !== "TODOS") navSel.value = filtroTicker;
+  renderFeed();
+});
+
+// Botón reset
+document.getElementById("btn-reset-filtros").addEventListener("click", () => {
+  filtroTicker      = "TODOS";
+  filtroSentimiento = "TODOS";
+  filtroDesde       = "2026-06-01";
+  filtroHasta       = "2026-06-12";
+  document.getElementById("filtro-ticker").value = "TODOS";
+  document.getElementById("filtro-desde").value  = "2026-06-01";
+  document.getElementById("filtro-hasta").value  = "2026-06-12";
+  document.querySelectorAll(".chip").forEach(c => c.classList.remove("activo"));
+  document.querySelector(".chip.all").classList.add("activo");
+  renderFeed();
+});
+
+// Selector de ticker en la navbar (sincroniza con filtro)
+document.getElementById("nav-ticker-select").addEventListener("change", e => {
+  filtroTicker = e.target.value === "Todos" ? "TODOS" : e.target.value;
+  document.getElementById("filtro-ticker").value = filtroTicker;
+  renderFeed();
+});
+
+/* =========================================================
+   INICIALIZACIÓN
+   ========================================================= */
+window.addEventListener("DOMContentLoaded", () => {
+  // Renderizar feed inicial
+  renderFeed();
+
+  // Ocultar overlay tras la animación de carga
+  setTimeout(() => {
+    const ov = document.getElementById("app-overlay");
+    ov.classList.add("oculto");
+    setTimeout(() => { ov.style.display = "none"; }, 500);
+  }, 2400);
+});
+</script>
+</body>
+</html>

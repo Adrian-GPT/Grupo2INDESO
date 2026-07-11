@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InvestAI — Gestión de Portafolio</title>
+
+  <!-- Inter desde Google Fonts (misma fuente usada en toda la suite) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Chart.js via CDN (requerido por las restricciones del prompt) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* =========================================================
+       VARIABLES GLOBALES — idénticas al resto de la suite InvestAI
+       ========================================================= */
+    :root {
+  --azul: #1F3864;
+  --azul-hover: #2E5395;
+  --dorado: #C5961A;
+  --dorado-bg: rgba(197,150,26,0.14);
+  --blanco: #FFFFFF;
+  --fondo: #0D1B33;
+  --panel: #122548;
+  --borde: #1F3864;
+  --texto: #E2E8F3;
+  --suave: #6B7A99;
+  --r: 10px;
+  --rl: 14px;
+  --sh-s: 0 1px 4px rgba(0,0,0,.35);
+  --sh-m: 0 4px 18px rgba(0,0,0,.45);
+  --azul-medio: #2E5395;
+  --dorado-claro: #E8B836;
+  --granate: #C2467A;
+  --alcista: #26A69A;
+  --alcista-bg: rgba(38,166,154,0.14);
+  --bajista: #EF5350;
+  --bajista-bg: rgba(239,83,80,0.14);
+  --hold: #F59E0B;
+  --hold-bg: rgba(245,158,11,0.14);
+}
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--fondo);
+      color: var(--texto);
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    /* =========================================================
+       LAYOUT DE APP
+       ========================================================= */
+    .app {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* =========================================================
+       NAVBAR — igual al patrón de la suite
+       ========================================================= */
+    .navbar {
+      background: linear-gradient(90deg, var(--azul) 0%, var(--azul-medio) 100%);
+      padding: 0 20px;
+      height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      box-shadow: 0 2px 12px rgba(31,56,100,.22);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--blanco);
+      letter-spacing: -0.3px;
+    }
+
+    .nav-brand em { color: var(--dorado); font-style: normal; }
+
+    .nav-badge {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      background: rgba(197,150,26,.25);
+      color: var(--dorado-claro);
+      border: 1px solid rgba(197,150,26,.4);
+      border-radius: 5px;
+      padding: 2px 7px;
+      text-transform: uppercase;
+    }
+
+    .nav-r {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    /* Indicador de datos en vivo (animación pulso verde) */
+    .live-ind {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      color: rgba(255,255,255,.72);
+    }
+
+    .live-ind::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4ADE80;
+      box-shadow: 0 0 0 2px rgba(74,222,128,.35);
+      animation: pulso 1.7s ease-in-out infinite;
+    }
+
+    @keyframes pulso {
+      0%, 100% { box-shadow: 0 0 0 2px rgba(74,222,128,.35); }
+      50%       { box-shadow: 0 0 0 6px rgba(74,222,128,.0); }
+    }
+
+    .reloj {
+      font-size: 12px;
+      color: rgba(255,255,255,.55);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* =========================================================
+       CONTENIDO PRINCIPAL
+       ========================================================= */
+    .main {
+      padding: 16px 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      flex: 1;
+    }
+
+    /* =========================================================
+       TARJETAS DE MÉTRICAS CLAVE (fila superior)
+       ========================================================= */
+    .metricas-fila {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .metrica-card {
+      background: var(--panel);
+      border: 1px solid var(--borde);
+      border-radius: var(--rl);
+      padding: 16px 18px;
+      box-shadow: var(--sh-s);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Borde superior de color por tipo de métrica */
+    .metrica-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+    }
+
+    .metrica-card.positivo::before { background: var(--alcista); }
+    .metrica-card.dorada::before   { background: var(--dorado); }
+    .metrica-card.rojo::before     { background: var(--bajista); }
+    .metrica-card.azul::before     { background: var(--azul); }
+
+    .metrica-lbl {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--suave);
+      letter-spacing: .6px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .metrica-val {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--texto);
+      line-height: 1;
+      margin-bottom: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metrica-val.positivo { color: var(--alcista); }
+    .metrica-val.negativo { color: var(--bajista); }
+
+    .metrica-sub {
+      font-size: 11px;
+      color: var(--suave);
+    }
+
+    /* =========================================================
+       FILA CENTRAL: gráfico dona + curva de equity
+       ========================================================= */
+    .fila-central {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 14px;
+    }
+
+    /* Contenedor genérico de panel con título */
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--borde);
+      border-radius: var(--rl);
+      box-shadow: var(--sh-s);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 18px;
+      border-bottom: 1px solid var(--borde);
+    }
+
+    .panel-titulo {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--texto);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .panel-titulo .icono {
+      width: 22px;
+      height: 22px;
+      background: rgba(31,56,100,.08);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+
+    .panel-body {
+      padding: 16px 18px;
+    }
+
+    /* =========================================================
+       GRÁFICO DE DONA — distribución del portafolio
+       ========================================================= */
+    .dona-wrap {
+      position: relative;
+      width: 190px;
+      height: 190px;
+      margin: 0 auto 16px;
+    }
+
+    /* Texto central dentro del canvas de dona */
+    .dona-centro {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .dona-centro-val {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--texto);
+      line-height: 1;
+    }
+
+    .dona-centro-lbl {
+      font-size: 10px;
+      color: var(--suave);
+      font-weight: 600;
+    }
+
+    /* Leyenda de la dona */
+    .dona-leyenda {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .leyenda-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .leyenda-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    .leyenda-ticker { font-weight: 700; color: var(--texto); flex: 1; }
+    .leyenda-pct    { font-weight: 600; color: var(--suave); }
+    .leyenda-monto  { font-weight: 700; color: var(--texto); }
+
+    /* =========================================================
+       CURVA DE EQUITY
+       ========================================================= */
+    .equity-canvas-wrap {
+      position: relative;
+      height: 240px;
+    }
+
+    .equity-leyenda {
+      display: flex;
+      gap: 18px;
+      margin-top: 10px;
+    }
+
+    .eq-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--suave);
+    }
+
+    .eq-linea {
+      width: 28px;
+      height: 2.5px;
+      border-radius: 2px;
+    }
+
+    .eq-linea.estrategia { background: #3B82F6; }
+    .eq-linea.bh         { background: #94A3B8; }
+    .eq-linea.bh         { border-top: 2px dashed #94A3B8; background: transparent; }
+
+    /* =========================================================
+       TABLA DE POSICIONES
+       ========================================================= */
+    .tabla-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    thead th {
+      background: var(--fondo);
+      padding: 10px 12px;
+      text-align: left;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+      color: var(--suave);
+      border-bottom: 2px solid var(--borde);
+      white-space: nowrap;
+    }
+
+    thead th:last-child { text-align: center; }
+
+    tbody tr {
+      border-bottom: 1px solid var(--borde);
+      transition: background .15s;
+    }
+
+    tbody tr:hover { background: rgba(31,56,100,.03); }
+    tbody tr:last-child { border-bottom: none; }
+
+    tbody td {
+      padding: 11px 12px;
+      white-space: nowrap;
+      color: var(--texto);
+    }
+
+    /* Celda de ticker con punto de color */
+    .ticker-celda {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ticker-punto {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .ticker-sym { font-weight: 700; color: var(--texto); font-size: 13px; }
+    .ticker-nom { font-size: 11px; color: var(--suave); }
+
+    /* Valores numéricos con alineación derecha */
+    .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+    .pos { color: var(--alcista); }
+    .neg { color: var(--bajista); }
+
+    /* Badge de señal */
+    .senal-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .3px;
+    }
+
+    .senal-badge.buy  { background: var(--alcista-bg); color: var(--alcista); }
+    .senal-badge.sell { background: var(--bajista-bg); color: var(--bajista); }
+    .senal-badge.hold { background: var(--hold-bg);    color: #B45309; }
+
+    .senal-celda { text-align: center; }
+
+    /* =========================================================
+       FILA INFERIOR: capital resumen + botón rebalanceo
+       ========================================================= */
+    .fila-inferior {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .capital-panel {
+      background: var(--panel);
+      border: 1px solid var(--borde);
+      border-radius: var(--rl);
+      box-shadow: var(--sh-s);
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 260px;
+    }
+
+    .capital-titulo {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+      color: var(--suave);
+    }
+
+    .capital-fila {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .capital-fila .cf-lbl { color: var(--suave); }
+    .capital-fila .cf-val { font-weight: 700; color: var(--texto); }
+    .capital-fila .cf-val.pos { color: var(--alcista); }
+
+    .capital-divider { border: none; border-top: 1px solid var(--borde); margin: 2px 0; }
+
+    /* Botón principal de rebalanceo */
+    .btn-rebalancear {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 12px 20px;
+      background: linear-gradient(135deg, var(--azul) 0%, var(--azul-medio) 100%);
+      color: var(--blanco);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-top: 6px;
+      transition: opacity .2s, transform .15s, box-shadow .2s;
+      box-shadow: 0 4px 14px rgba(31,56,100,.3);
+    }
+
+    .btn-rebalancear:hover {
+      opacity: .92;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(31,56,100,.38);
+    }
+
+    .btn-rebalancear:active { transform: translateY(0); }
+
+    /* Barra de progreso de asignación por activo */
+    .asig-barra-wrap { flex: 1; }
+
+    .asig-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 9px;
+    }
+
+    .asig-row:last-child { margin-bottom: 0; }
+
+    .asig-ticker { font-size: 12px; font-weight: 700; color: var(--texto); width: 58px; flex-shrink: 0; }
+    .asig-barra-bg { flex: 1; height: 7px; background: var(--fondo); border-radius: 4px; overflow: hidden; }
+    .asig-barra-fill { height: 100%; border-radius: 4px; transition: width .6s ease; }
+    .asig-pct { font-size: 11px; font-weight: 700; color: var(--suave); width: 32px; text-align: right; flex-shrink: 0; }
+
+    /* =========================================================
+       MODAL DE CONFIRMACIÓN DE REBALANCEO
+       ========================================================= */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(13,27,51,.55);
+      backdrop-filter: blur(4px);
+      z-index: 900;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-overlay.visible { display: flex; }
+
+    .modal {
+      background: var(--panel);
+      border-radius: 18px;
+      box-shadow: 0 20px 60px rgba(13,27,51,.25);
+      width: 100%;
+      max-width: 440px;
+      overflow: hidden;
+      animation: slideUp .3s cubic-bezier(.34,1.56,.64,1);
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(30px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    /* Barra de color en el modal */
+    .modal-barra {
+      height: 4px;
+      background: linear-gradient(90deg, var(--azul), var(--dorado));
+    }
+
+    .modal-contenido {
+      padding: 28px 28px 24px;
+    }
+
+    .modal-icono {
+      width: 52px;
+      height: 52px;
+      background: rgba(31,56,100,.08);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin-bottom: 16px;
+    }
+
+    .modal-titulo {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--texto);
+      margin-bottom: 6px;
+    }
+
+    .modal-desc {
+      font-size: 13px;
+      color: var(--suave);
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+
+    /* Tabla resumen dentro del modal */
+    .modal-tabla {
+      background: var(--fondo);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 20px;
+    }
+
+    .modal-fila {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      padding: 4px 0;
+    }
+
+    .modal-fila:not(:last-child) { border-bottom: 1px solid var(--borde); margin-bottom: 4px; }
+    .modal-fila .mf-lbl { color: var(--suave); }
+    .modal-fila .mf-val { font-weight: 700; color: var(--texto); }
+
+    /* Botones del modal */
+    .modal-botones {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-cancelar {
+      flex: 1;
+      padding: 11px;
+      background: var(--fondo);
+      border: 1.5px solid var(--borde);
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--suave);
+      cursor: pointer;
+      transition: border-color .15s, color .15s;
+    }
+
+    .btn-cancelar:hover { border-color: var(--texto); color: var(--texto); }
+
+    .btn-confirmar {
+      flex: 1.5;
+      padding: 11px;
+      background: linear-gradient(135deg, var(--azul), var(--azul-medio));
+      border: none;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--blanco);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: opacity .2s;
+      box-shadow: 0 4px 12px rgba(31,56,100,.28);
+    }
+
+    .btn-confirmar:hover { opacity: .9; }
+
+    /* =========================================================
+       TOAST DE CONFIRMACIÓN
+       ========================================================= */
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      right: 24px;
+      background: var(--alcista);
+      color: var(--blanco);
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 6px 24px rgba(38,166,154,.35);
+      z-index: 9999;
+      transform: translateY(80px);
+      opacity: 0;
+      transition: transform .35s cubic-bezier(.34,1.56,.64,1), opacity .3s;
+    }
+
+    .toast.show { transform: translateY(0); opacity: 1; }
+
+    /* =========================================================
+       RESPONSIVE MÓVIL
+       ========================================================= */
+    @media (max-width: 900px) {
+      .metricas-fila   { grid-template-columns: repeat(2, 1fr); }
+      .fila-central    { grid-template-columns: 1fr; }
+      .dona-wrap       { width: 160px; height: 160px; }
+    }
+
+    @media (max-width: 600px) {
+      .main            { padding: 12px; gap: 12px; }
+      .metricas-fila   { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .metrica-val     { font-size: 20px; }
+      .fila-inferior   { flex-direction: column; }
+      .capital-panel   { min-width: auto; width: 100%; }
+    }
+  </style>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          navy: { deep: '#0A1428', base: '#0D1B33', card: '#122548', border: '#1F3864' },
+          teal: '#26A69A', mint: '#4ADE80', gold: '#C5961A', sky: '#3B82F6', coral: '#EF5350',
+          ink: { 100: '#E2E8F3', 300: '#9FB0CE', 500: '#6B7A99' }
+        },
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+      }
+    }
+  };
+</script>
+<script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+<div class="w-full bg-navy-deep border-b border-navy-border/60 sticky top-0 z-[999]">
+  <div class="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3 overflow-x-auto custom-scroll">
+    <a href="home.html" class="flex items-center gap-2 shrink-0 mr-1">
+      <svg width="24" height="24" viewBox="0 0 44 44" class="shrink-0" role="img" aria-label="Logo InvestAI">
+        <rect width="44" height="44" rx="12" fill="#122548"/>
+        <line x1="14" y1="10" x2="14" y2="34" stroke="#26A69A" stroke-width="2"/>
+        <rect x="10" y="16" width="8" height="10" rx="1.5" fill="#26A69A"/>
+        <line x1="22" y1="6" x2="22" y2="30" stroke="#4ADE80" stroke-width="2"/>
+        <rect x="18" y="13" width="8" height="11" rx="1.5" fill="#4ADE80"/>
+        <line x1="30" y1="14" x2="30" y2="38" stroke="#C5961A" stroke-width="2"/>
+        <rect x="26" y="20" width="8" height="9" rx="1.5" fill="#C5961A"/>
+      </svg>
+      <span class="font-extrabold text-white text-sm tracking-tight whitespace-nowrap">InvestAI</span>
+    </a>
+    <nav class="flex items-center gap-1.5 flex-nowrap">
+      <a href="home.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="home" class="w-3.5 h-3.5"></i>Portal</a>
+      <a href="modulo_mercado.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="candlestick-chart" class="w-3.5 h-3.5"></i>Dashboard Mercado</a>
+      <a href="modulo_svc.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="shield-check" class="w-3.5 h-3.5"></i>Clasificador SVC</a>
+      <a href="investai_modelos_ia.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="cpu" class="w-3.5 h-3.5"></i>Modelos de IA</a>
+      <a href="investai_lstm.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="trending-up" class="w-3.5 h-3.5"></i>LSTM Regressor</a>
+      <a href="investai_nlp.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="newspaper" class="w-3.5 h-3.5"></i>NLP Noticias</a>
+      <a href="investai_estrategias.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="target" class="w-3.5 h-3.5"></i>Estrategias</a>
+      <a href="investai_portafolio.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors bg-teal text-navy-deep"><i data-lucide="briefcase" class="w-3.5 h-3.5"></i>Portafolio</a>
+      <a href="investai_reportes_backtesting.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="bar-chart-2" class="w-3.5 h-3.5"></i>Backtesting</a>
+      <a href="investai_dashboard_completo.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i>Dashboard Resultados</a>
+      <a href="investai_broker.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors text-ink-300 border border-navy-border hover:border-teal/60 hover:text-teal"><i data-lucide="send" class="w-3.5 h-3.5"></i>Envio a Broker</a>
+    </nav>
+  </div>
+</div>
+<script>window.addEventListener('DOMContentLoaded', function(){ if (window.lucide) lucide.createIcons(); });</script>
+
+
+<!-- ============================================================
+     MODAL DE CONFIRMACIÓN DE REBALANCEO
+     ============================================================ -->
+<div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitulo">
+  <div class="modal">
+    <div class="modal-barra"></div>
+    <div class="modal-contenido">
+      <div class="modal-icono">⚖️</div>
+      <h2 class="modal-titulo" id="modalTitulo">Confirmar Rebalanceo</h2>
+      <p class="modal-desc">
+        Esta operación ajustará las posiciones de tu portafolio para restaurar
+        los pesos objetivo. Se generarán órdenes de compra y venta según el
+        diferencial detectado.
+      </p>
+      <div class="modal-tabla">
+        <div class="modal-fila">
+          <span class="mf-lbl">Capital a redistribuir</span>
+          <span class="mf-val">$12,340.00</span>
+        </div>
+        <div class="modal-fila">
+          <span class="mf-lbl">Órdenes a generar</span>
+          <span class="mf-val">4 transacciones</span>
+        </div>
+        <div class="modal-fila">
+          <span class="mf-lbl">Comisión estimada (0.1%)</span>
+          <span class="mf-val">$12.34</span>
+        </div>
+        <div class="modal-fila">
+          <span class="mf-lbl">Estrategia objetivo</span>
+          <span class="mf-val">AAPL 40 · MSFT 25 · GOOGL 20 · BTC 15</span>
+        </div>
+      </div>
+      <div class="modal-botones">
+        <button class="btn-cancelar" onclick="cerrarModal()">Cancelar</button>
+        <button class="btn-confirmar" onclick="confirmarRebalanceo()">
+          ✓ Confirmar Rebalanceo
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast de éxito -->
+<div class="toast" id="toast">✓ Rebalanceo ejecutado correctamente</div>
+
+<!-- ============================================================
+     APP PRINCIPAL
+     ============================================================ -->
+<div class="app">
+
+  <!-- NAVBAR — coherente con toda la suite InvestAI -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <!-- Logo SVG inline (sin dependencias externas) -->
+      <svg width="24" height="24" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+        <rect width="40" height="40" rx="9" fill="#C5961A"/>
+        <rect x="9"  y="10" width="4" height="20" rx="2" fill="white" opacity=".3"/>
+        <rect x="9"  y="15" width="4" height="10" rx="1.5" fill="white"/>
+        <rect x="18" y="6"  width="4" height="28" rx="2" fill="white" opacity=".3"/>
+        <rect x="18" y="11" width="4" height="14" rx="1.5" fill="#1F3864"/>
+        <rect x="27" y="12" width="4" height="18" rx="2" fill="white" opacity=".3"/>
+        <rect x="27" y="17" width="4" height="8"  rx="1.5" fill="white"/>
+      </svg>
+      Invest<em>AI</em>
+      <span class="nav-badge">PORTAFOLIO</span>
+    </div>
+    <div class="nav-r">
+      <div class="live-ind">Capital actualizado</div>
+      <div class="reloj" id="reloj">--:--:--</div>
+    </div>
+  </nav>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <div class="main">
+
+    <!-- ══════════════════════════════════════════
+         FILA 1: TARJETAS DE MÉTRICAS BACKTESTING
+         ══════════════════════════════════════════ -->
+    <div class="metricas-fila">
+
+      <!-- Total Return -->
+      <div class="metrica-card positivo">
+        <div class="metrica-lbl">Total Return</div>
+        <div class="metrica-val positivo" id="totalReturn">+34.7%</div>
+        <div class="metrica-sub">Capital inicial: $100,000 USD</div>
+      </div>
+
+      <!-- Sharpe Ratio -->
+      <div class="metrica-card dorada">
+        <div class="metrica-lbl">Sharpe Ratio</div>
+        <div class="metrica-val" id="sharpe">1.84</div>
+        <div class="metrica-sub">Rf = 5.25% · Ventana 252 días</div>
+      </div>
+
+      <!-- Max Drawdown -->
+      <div class="metrica-card rojo">
+        <div class="metrica-lbl">Max Drawdown</div>
+        <div class="metrica-val negativo" id="drawdown">−12.3%</div>
+        <div class="metrica-sub">Peor caída acumulada</div>
+      </div>
+
+      <!-- Win Rate -->
+      <div class="metrica-card azul">
+        <div class="metrica-lbl">Win Rate</div>
+        <div class="metrica-val" id="winRate">68.4%</div>
+        <div class="metrica-sub">Trades ganadores / total</div>
+      </div>
+
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         FILA 2: DONA + CURVA DE EQUITY
+         ══════════════════════════════════════════ -->
+    <div class="fila-central">
+
+      <!-- Panel: Distribución del Portafolio (dona) -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-titulo">
+            <div class="icono">🥧</div>
+            Distribución del Portafolio
+          </div>
+        </div>
+        <div class="panel-body">
+          <!-- Gráfico de dona Chart.js -->
+          <div class="dona-wrap">
+            <canvas id="donaChart" aria-label="Distribución del portafolio"></canvas>
+            <div class="dona-centro">
+              <div class="dona-centro-val">$134.7K</div>
+              <div class="dona-centro-lbl">Valor total</div>
+            </div>
+          </div>
+
+          <!-- Leyenda de la dona -->
+          <div class="dona-leyenda">
+            <div class="leyenda-item">
+              <div class="leyenda-dot" style="background:#3B82F6"></div>
+              <span class="leyenda-ticker">AAPL</span>
+              <span class="leyenda-pct">40%</span>
+              <span class="leyenda-monto">$53,880</span>
+            </div>
+            <div class="leyenda-item">
+              <div class="leyenda-dot" style="background:#8B5CF6"></div>
+              <span class="leyenda-ticker">MSFT</span>
+              <span class="leyenda-pct">25%</span>
+              <span class="leyenda-monto">$33,675</span>
+            </div>
+            <div class="leyenda-item">
+              <div class="leyenda-dot" style="background:#26A69A"></div>
+              <span class="leyenda-ticker">GOOGL</span>
+              <span class="leyenda-pct">20%</span>
+              <span class="leyenda-monto">$26,940</span>
+            </div>
+            <div class="leyenda-item">
+              <div class="leyenda-dot" style="background:#F59E0B"></div>
+              <span class="leyenda-ticker">BTC-USD</span>
+              <span class="leyenda-pct">15%</span>
+              <span class="leyenda-monto">$20,205</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel: Curva de Equity -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-titulo">
+            <div class="icono">📈</div>
+            Curva de Equity — Estrategia vs Buy &amp; Hold
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="equity-canvas-wrap">
+            <canvas id="equityChart" aria-label="Curva de equity"></canvas>
+          </div>
+          <!-- Leyenda de líneas -->
+          <div class="equity-leyenda">
+            <div class="eq-item">
+              <div class="eq-linea estrategia"></div>
+              Estrategia InvestAI <strong style="color:var(--alcista);margin-left:4px">+34.7%</strong>
+            </div>
+            <div class="eq-item">
+              <div class="eq-linea bh"></div>
+              Buy &amp; Hold &nbsp;<strong style="color:var(--suave);margin-left:4px">+21.2%</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         FILA 3: TABLA DE POSICIONES
+         ══════════════════════════════════════════ -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-titulo">
+          <div class="icono">📋</div>
+          Posiciones Abiertas
+        </div>
+        <span style="font-size:11px;color:var(--suave);">4 activos · Datos simulados en USD</span>
+      </div>
+      <div class="panel-body" style="padding:0;">
+        <div class="tabla-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th class="num">Cantidad</th>
+                <th class="num">P. Compra</th>
+                <th class="num">P. Actual</th>
+                <th class="num">P&amp;L ($)</th>
+                <th class="num">P&amp;L (%)</th>
+                <th>Señal</th>
+              </tr>
+            </thead>
+            <tbody id="tablaPosiciones">
+              <!-- Filas generadas por JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         FILA 4: RESUMEN DE CAPITAL + BOTÓN REBALANCEO
+         ══════════════════════════════════════════ -->
+    <div class="fila-inferior">
+
+      <!-- Panel resumen de capital -->
+      <div class="capital-panel">
+        <div class="capital-titulo">Resumen de Capital</div>
+        <div class="capital-fila">
+          <span class="cf-lbl">Capital inicial</span>
+          <span class="cf-val">$100,000.00</span>
+        </div>
+        <div class="capital-fila">
+          <span class="cf-lbl">Valor actual</span>
+          <span class="cf-val pos">$134,700.00</span>
+        </div>
+        <hr class="capital-divider"/>
+        <div class="capital-fila">
+          <span class="cf-lbl">P&amp;L total</span>
+          <span class="cf-val pos">+$34,700.00</span>
+        </div>
+        <div class="capital-fila">
+          <span class="cf-lbl">Comisiones pagadas</span>
+          <span class="cf-val" style="color:var(--bajista)">−$123.40</span>
+        </div>
+        <div class="capital-fila">
+          <span class="cf-lbl">Total Trades</span>
+          <span class="cf-val">247</span>
+        </div>
+        <div class="capital-fila">
+          <span class="cf-lbl">Profit Factor</span>
+          <span class="cf-val pos">2.31</span>
+        </div>
+        <!-- Botón principal -->
+        <button class="btn-rebalancear" onclick="abrirModal()">
+          ⚖️ Rebalancear Portafolio
+        </button>
+      </div>
+
+      <!-- Barras de asignación actual vs objetivo -->
+      <div class="panel" style="flex:1;">
+        <div class="panel-header">
+          <div class="panel-titulo">
+            <div class="icono">🎯</div>
+            Asignación Actual vs Objetivo
+          </div>
+        </div>
+        <div class="panel-body">
+          <div id="asigBarra" class="asig-barra-wrap"></div>
+        </div>
+      </div>
+
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+  /* ============================================================
+     DATOS SIMULADOS — portafolio InvestAI (capital $100,000 USD)
+     ============================================================ */
+  const POSICIONES = [
+    { ticker:'AAPL', nombre:'Apple Inc.',       cantidad:237, pCompra:177.42, pActual:227.34, senal:'BUY'  },
+    { ticker:'MSFT', nombre:'Microsoft Corp.',  cantidad:88,  pCompra:298.15, pActual:382.58, senal:'HOLD' },
+    { ticker:'GOOGL', nombre:'Alphabet Inc.',   cantidad:120, pCompra:138.70, pActual:224.50, senal:'BUY'  },
+    { ticker:'BTC-USD', nombre:'Bitcoin',       cantidad:0.21,pCompra:58200,  pActual:96238,  senal:'SELL' }
+  ];
+
+  const COLORES_ACTIVO = {
+    'AAPL':    '#3B82F6',
+    'MSFT':    '#8B5CF6',
+    'GOOGL':   '#26A69A',
+    'BTC-USD': '#F59E0B'
+  };
+
+  /* ============================================================
+     RELOJ EN TIEMPO REAL
+     ============================================================ */
+  function actualizarReloj() {
+    const ahora = new Date();
+    document.getElementById('reloj').textContent =
+      ahora.toLocaleTimeString('es-PE', { hour12: false });
+  }
+  actualizarReloj();
+  setInterval(actualizarReloj, 1000);
+
+  /* ============================================================
+     HELPERS DE FORMATO
+     ============================================================ */
+  const fmt = {
+    usd:  v => (v < 0 ? '−$' : '$') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    pct:  v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%',
+    num:  v => v.toLocaleString('en-US', { maximumFractionDigits: 4 })
+  };
+
+  /* ============================================================
+     TABLA DE POSICIONES
+     ============================================================ */
+  function renderizarTabla() {
+    const tbody = document.getElementById('tablaPosiciones');
+    tbody.innerHTML = '';
+
+    POSICIONES.forEach(p => {
+      const pl   = (p.pActual - p.pCompra) * p.cantidad;
+      const plPct = ((p.pActual - p.pCompra) / p.pCompra) * 100;
+      const positivo = pl >= 0;
+
+      // Badge de señal según modelo de la suite
+      const senalClass  = p.senal === 'BUY' ? 'buy' : p.senal === 'SELL' ? 'sell' : 'hold';
+      const senalIcono  = p.senal === 'BUY' ? '▲' : p.senal === 'SELL' ? '▼' : '▬';
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>
+          <div class="ticker-celda">
+            <div class="ticker-punto" style="background:${COLORES_ACTIVO[p.ticker]}"></div>
+            <div>
+              <div class="ticker-sym">${p.ticker}</div>
+              <div class="ticker-nom">${p.nombre}</div>
+            </div>
+          </div>
+        </td>
+        <td class="num">${fmt.num(p.cantidad)}</td>
+        <td class="num">${fmt.usd(p.pCompra)}</td>
+        <td class="num">${fmt.usd(p.pActual)}</td>
+        <td class="num ${positivo ? 'pos' : 'neg'}">${fmt.usd(pl)}</td>
+        <td class="num ${positivo ? 'pos' : 'neg'}">${fmt.pct(plPct)}</td>
+        <td class="senal-celda">
+          <span class="senal-badge ${senalClass}">${senalIcono} ${p.senal}</span>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  /* ============================================================
+     GRÁFICO DE DONA — distribución del portafolio
+     ============================================================ */
+  function renderizarDona() {
+    const ctx = document.getElementById('donaChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['AAPL', 'MSFT', 'GOOGL', 'BTC-USD'],
+        datasets: [{
+          data: [40, 25, 20, 15],
+          backgroundColor: ['#3B82F6', '#8B5CF6', '#26A69A', '#F59E0B'],
+          borderColor:     ['#ffffff', '#ffffff', '#ffffff', '#ffffff'],
+          borderWidth: 3,
+          hoverOffset: 8
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        cutout: '68%',        // dona más delgada = aspecto financiero moderno
+        plugins: {
+          legend: { display: false },  // leyenda propia debajo
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.label}: ${ctx.raw}%`
+            }
+          }
+        }
+      }
+    });
+  }
+
+  /* ============================================================
+     GRÁFICO DE CURVA DE EQUITY — estrategia vs buy & hold
+     Datos simulados para 252 días de trading (1 año bursátil)
+     ============================================================ */
+  function generarSerieTiempo(dias, retornoFinal, volatilidad, semilla) {
+    /* Simulación de camino aleatorio con tendencia (Geometric Brownian Motion simplificado) */
+    const serie = [100000];
+    const mu    = retornoFinal / dias;
+    let rand    = semilla;
+
+    // Generador pseudo-aleatorio reproducible (LCG)
+    const rng = () => {
+      rand = (rand * 1664525 + 1013904223) & 0xffffffff;
+      return (rand >>> 0) / 0xffffffff;
+    };
+
+    for (let i = 1; i < dias; i++) {
+      const cambio = mu + volatilidad * (rng() - 0.5);
+      serie.push(Math.max(50000, serie[i-1] * (1 + cambio)));
+    }
+    // Anclar el valor final al retorno deseado
+    serie[dias - 1] = 100000 * (1 + retornoFinal);
+    return serie;
+  }
+
+  function generarFechas(dias) {
+    const fechas = [];
+    const inicio = new Date('2025-01-02');
+    let d = new Date(inicio);
+    let contadas = 0;
+    while (contadas < dias) {
+      // Sólo días hábiles (lun–vier)
+      if (d.getDay() !== 0 && d.getDay() !== 6) {
+        fechas.push(d.toLocaleDateString('es-PE', { day:'2-digit', month:'short' }));
+        contadas++;
+      }
+      d.setDate(d.getDate() + 1);
+    }
+    return fechas;
+  }
+
+  function renderizarEquity() {
+    const ctx    = document.getElementById('equityChart').getContext('2d');
+    const dias   = 252;
+    const fechas = generarFechas(dias);
+
+    // Estrategia InvestAI: +34.7% con vol moderada
+    const serieEstrategia = generarSerieTiempo(dias, 0.347, 0.018, 42);
+    // Buy & Hold: +21.2% con vol similar
+    const serieBH         = generarSerieTiempo(dias, 0.212, 0.016, 77);
+
+    // Mostrar una etiqueta de fecha cada ~30 días para no saturar el eje X
+    const labelsReducidos = fechas.map((f, i) => (i % 30 === 0) ? f : '');
+
+    // Área de relleno bajo la curva de estrategia (degradado)
+    const gradiente = ctx.createLinearGradient(0, 0, 0, 240);
+    gradiente.addColorStop(0,   'rgba(59,130,246,0.18)');
+    gradiente.addColorStop(1,   'rgba(59,130,246,0.0)');
+
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labelsReducidos,
+        datasets: [
+          {
+            // Línea azul continua — estrategia activa
+            label: 'Estrategia InvestAI',
+            data:  serieEstrategia,
+            borderColor:     '#3B82F6',
+            backgroundColor: gradiente,
+            borderWidth: 2.5,
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+            pointHoverRadius: 5,
+            pointHoverBackgroundColor: '#3B82F6'
+          },
+          {
+            // Línea gris discontinua — buy & hold
+            label: 'Buy & Hold',
+            data:  serieBH,
+            borderColor:     '#94A3B8',
+            backgroundColor: 'transparent',
+            borderWidth: 1.8,
+            borderDash: [6, 4],
+            fill: false,
+            tension: 0.3,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            pointHoverBackgroundColor: '#94A3B8'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#0D1B33',
+            titleColor: '#94A3B8',
+            bodyColor:  '#FFFFFF',
+            padding: 10,
+            callbacks: {
+              title: items => `Fecha: ${fechas[items[0].dataIndex]}`,
+              label: item => ` ${item.dataset.label}: ${fmt.usd(item.raw)}`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid:  { display: false },
+            ticks: { color: '#6B7A99', font: { size: 10 }, maxRotation: 0 }
+          },
+          y: {
+            grid:  { color: 'rgba(255,255,255,0.08)', lineWidth: 1 },
+            ticks: {
+              color: '#6B7A99',
+              font:  { size: 10 },
+              callback: v => '$' + (v / 1000).toFixed(0) + 'K'
+            }
+          }
+        }
+      }
+    });
+  }
+
+  /* ============================================================
+     BARRAS DE ASIGNACIÓN (panel inferior derecho)
+     ============================================================ */
+  function renderizarAsignacion() {
+    // Asignación actual (con drift de mercado) vs objetivo
+    const asignaciones = [
+      { ticker:'AAPL',    actual:42.1, objetivo:40, color:'#3B82F6' },
+      { ticker:'MSFT',    actual:22.8, objetivo:25, color:'#8B5CF6' },
+      { ticker:'GOOGL',   actual:21.6, objetivo:20, color:'#26A69A' },
+      { ticker:'BTC-USD', actual:13.5, objetivo:15, color:'#F59E0B' }
+    ];
+
+    const contenedor = document.getElementById('asigBarra');
+    contenedor.innerHTML = '';
+
+    asignaciones.forEach(a => {
+      const div = document.createElement('div');
+      div.className = 'asig-row';
+      div.innerHTML = `
+        <span class="asig-ticker">${a.ticker}</span>
+        <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+          <!-- Barra de asignación actual -->
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div class="asig-barra-bg" style="flex:1">
+              <div class="asig-barra-fill" style="width:${a.actual}%;background:${a.color}"></div>
+            </div>
+            <span style="font-size:11px;font-weight:700;color:${a.color};width:38px;text-align:right">${a.actual}%</span>
+          </div>
+          <!-- Barra objetivo (transparente, borde punteado) -->
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div class="asig-barra-bg" style="flex:1">
+              <div class="asig-barra-fill" style="width:${a.objetivo}%;background:transparent;border-top:2.5px dashed ${a.color};opacity:.5;margin-top:-2px"></div>
+            </div>
+            <span style="font-size:10px;font-weight:600;color:var(--suave);width:38px;text-align:right">obj ${a.objetivo}%</span>
+          </div>
+        </div>
+      `;
+      contenedor.appendChild(div);
+    });
+  }
+
+  /* ============================================================
+     MODAL DE REBALANCEO
+     ============================================================ */
+  function abrirModal() {
+    document.getElementById('modalOverlay').classList.add('visible');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function cerrarModal() {
+    document.getElementById('modalOverlay').classList.remove('visible');
+    document.body.style.overflow = '';
+  }
+
+  function confirmarRebalanceo() {
+    cerrarModal();
+    // Mostrar toast de confirmación
+    const toast = document.getElementById('toast');
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3500);
+  }
+
+  // Cerrar modal al hacer clic fuera del contenido
+  document.getElementById('modalOverlay').addEventListener('click', function(e) {
+    if (e.target === this) cerrarModal();
+  });
+
+  // Cerrar modal con tecla Escape
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') cerrarModal();
+  });
+
+  /* ============================================================
+     INICIALIZACIÓN — render de todos los componentes
+     ============================================================ */
+  document.addEventListener('DOMContentLoaded', () => {
+    renderizarTabla();
+    renderizarDona();
+    renderizarEquity();
+    renderizarAsignacion();
+  });
+</script>
+</body>
+</html>
