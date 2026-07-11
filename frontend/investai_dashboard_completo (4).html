@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InvestAI | Dashboard Completo</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          navy: { deep: '#0A1428', base: '#0D1B33', card: '#122548', border: '#1F3864' },
+          teal: '#26A69A', mint: '#4ADE80', gold: '#C5961A', sky: '#3B82F6', coral: '#EF5350',
+          ink: { 100: '#E2E8F3', 300: '#9FB0CE', 500: '#6B7A99' }
+        },
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+      }
+    }
+  };
+</script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+<style>
+  a:focus-visible, button:focus-visible, select:focus-visible {
+    outline: 2px solid #4ADE80;
+    outline-offset: 3px;
+    border-radius: 0.5rem;
+  }
+  ::selection { background: #26A69A; color: #0A1428; }
+
+  .custom-scroll::-webkit-scrollbar { width: 6px; }
+  .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+  .custom-scroll::-webkit-scrollbar-thumb { background: #1F3864; border-radius: 10px; }
+  .custom-scroll::-webkit-scrollbar-thumb:hover { background: #3B82F6; }
+
+  .empty-space { min-height: 80px; }
+
+  .modelo-item-disabled { opacity: 0.4; }
+
+  .luz-semaforo {
+    width: 42px; height: 42px; border-radius: 9999px;
+    border: 3px solid #1F3864; opacity: 0.25; transition: all 0.3s ease;
+  }
+  .luz-semaforo.on-buy  { background: #4ADE80; opacity: 1; border-color: #4ADE80; box-shadow: 0 0 14px rgba(74,222,128,0.6); }
+  .luz-semaforo.on-hold { background: #C5961A; opacity: 1; border-color: #C5961A; box-shadow: 0 0 14px rgba(197,150,26,0.6); }
+  .luz-semaforo.on-sell { background: #EF5350; opacity: 1; border-color: #EF5350; box-shadow: 0 0 14px rgba(239,83,80,0.6); }
+</style>
+</head>
+
+<body class="bg-navy-base text-ink-100 font-sans antialiased">
+
+  <!-- ============ HEADER ============ -->
+  <header class="border-b border-navy-border/60 bg-navy-deep/40">
+    <div class="max-w-6xl mx-auto px-6 py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-mint/15 text-mint flex items-center justify-center shrink-0">
+          <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">Ernesto Investing AI</h1>
+          <p class="text-sm text-ink-300">Dashboard Completo — Mercado, Modelos y Backtesting</p>
+        </div>
+      </div>
+      <nav class="flex flex-wrap gap-2">
+        <a href="home.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-navy-border text-ink-300 text-sm hover:border-teal/60 hover:text-teal transition-colors">
+          <i data-lucide="home" class="w-4 h-4"></i> Portal
+        </a>
+        <a href="modulo_svc.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-navy-border text-ink-300 text-sm hover:border-teal/60 hover:text-teal transition-colors">
+          <i data-lucide="gauge" class="w-4 h-4"></i> Clasificador SVC
+        </a>
+        <a href="modulo_mercado.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-navy-border text-ink-300 text-sm hover:border-teal/60 hover:text-teal transition-colors">
+          <i data-lucide="candlestick-chart" class="w-4 h-4"></i> Dashboard de Mercado
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ============ CONTROLES ============ -->
+  <section class="border-b border-navy-border/60 bg-navy-card/30">
+    <div class="max-w-6xl mx-auto px-6 py-5 flex flex-wrap items-end justify-between gap-4">
+      <div class="flex flex-col gap-1.5">
+        <label for="selTicker" class="text-xs font-semibold uppercase tracking-wide text-ink-300">Ticker</label>
+        <select id="selTicker" onchange="cargarDashboard()"
+          class="px-4 py-2.5 rounded-xl bg-navy-deep border border-navy-border text-ink-100 text-sm focus:border-mint outline-none min-w-[180px]">
+          <option value="FSM">FSM</option>
+          <option value="VOLCABC1.LM">VOLCABC1.LM</option>
+          <option value="ABX.TO">ABX.TO</option>
+          <option value="BVN" selected>BVN</option>
+          <option value="BHP">BHP</option>
+        </select>
+      </div>
+
+      <button onclick="cargarDashboard()"
+        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-mint text-navy-deep text-sm font-bold hover:brightness-110 transition">
+        <i data-lucide="refresh-cw" class="w-4 h-4"></i> Actualizar Datos Reales
+      </button>
+
+      <div id="estadoApi" class="flex items-center gap-2 px-3 py-2 rounded-lg border border-navy-border bg-navy-deep text-xs text-ink-300">
+        <span id="puntoApi" class="w-2.5 h-2.5 rounded-full bg-ink-500 shrink-0"></span>
+        <span id="textoApi">Verificando API...</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CONTENIDO ============ -->
+  <main class="max-w-6xl mx-auto px-6 py-8">
+    <div id="aviso" class="mb-6"></div>
+
+    <!-- FILA 1: CANDLESTICK REAL -->
+    <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6 mb-6">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <i data-lucide="line-chart" class="w-4 h-4 text-mint"></i>
+          <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Mercado — Velas Reales (OHLCV) + SMA/EMA + Señal SVC</span>
+        </div>
+        <div class="flex gap-4 text-[10px] font-bold text-ink-300 uppercase">
+          <span class="flex items-center gap-1"><span class="text-mint text-sm">▲</span> BUY</span>
+          <span class="flex items-center gap-1"><span class="text-coral text-sm">▼</span> SELL</span>
+          <span class="flex items-center gap-1"><span class="text-ink-500 text-sm">●</span> HOLD</span>
+        </div>
+      </div>
+      <div id="plot-candlestick" class="w-full h-[420px] empty-space"></div>
+    </div>
+
+    <!-- FILA 2: CONSOLA DE MODELOS + SEÑAL CONSOLIDADA -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+      <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6">
+        <div class="flex items-center gap-2 mb-4">
+          <i data-lucide="cpu" class="w-4 h-4 text-mint"></i>
+          <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Consola del Core de IA — Modelos</span>
+        </div>
+        <p class="text-[11px] text-ink-500 mb-3">
+          Solo el modelo <span class="text-mint font-semibold">SVC</span> tiene datos reales disponibles desde MongoDB/FastAPI (Notebooks 1–3). Los demás modelos se muestran como referencia del pipeline pero sin datos simulados.
+        </p>
+        <div class="overflow-x-auto custom-scroll">
+          <table class="w-full text-xs">
+            <thead>
+              <tr class="text-left text-ink-300 uppercase text-[10px] border-b border-navy-border">
+                <th class="py-2 pr-2">Modelo</th>
+                <th class="py-2 pr-2">Tipo</th>
+                <th class="py-2 pr-2">Accuracy / RMSE</th>
+                <th class="py-2">Señal</th>
+              </tr>
+            </thead>
+            <tbody id="cuerpoTablaModelos"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6 flex flex-col">
+        <div class="flex items-center gap-2 mb-4">
+          <i data-lucide="gauge" class="w-4 h-4 text-mint"></i>
+          <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Señal Real del SVC (Ensamblado)</span>
+        </div>
+        <div class="flex items-center justify-center gap-5 py-3">
+          <div class="luz-semaforo" id="luzBuy"></div>
+          <div class="luz-semaforo" id="luzHold"></div>
+          <div class="luz-semaforo" id="luzSell"></div>
+        </div>
+        <div id="textoSenal" class="text-center font-extrabold text-xl mt-2 text-white">Cargando...</div>
+        <div id="subTextoSenal" class="text-center text-xs text-ink-300 mt-1"></div>
+
+        <div id="hparams-container" class="flex flex-wrap justify-center gap-2 mt-4"></div>
+
+        <div id="metricas" class="grid grid-cols-2 gap-3 mt-4"></div>
+      </div>
+    </div>
+
+    <!-- FILA 3: MATRIZ DE CONFUSIÓN -->
+    <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6 mb-6">
+      <div class="flex items-center gap-2 mb-4">
+        <i data-lucide="grid-3x3" class="w-4 h-4 text-mint"></i>
+        <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Matriz de Confusión Real (Test Set)</span>
+      </div>
+      <div id="matriz-container" class="py-2 empty-space"></div>
+    </div>
+
+    <!-- FILA 4: BACKTESTING (pendiente de pipeline real) -->
+    <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6">
+      <div class="flex items-center gap-2 mb-4">
+        <i data-lucide="bar-chart-3" class="w-4 h-4 text-mint"></i>
+        <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Resultados de Backtesting (VectorBT)</span>
+      </div>
+      <div class="rounded-xl border border-dashed border-navy-border bg-navy-deep/60 p-6 flex flex-col items-center text-center gap-2">
+        <i data-lucide="clock" class="w-5 h-5 text-ink-500"></i>
+        <p class="text-sm text-ink-300 max-w-xl">
+          Esta sección aún no tiene datos reales: los Notebooks 1–3 no generan backtesting con VectorBT.
+          Cuando exista una colección en MongoDB (ej. <code class="text-sky">resultados_backtest</code>) servida por un nuevo endpoint FastAPI, este panel se conectará igual que el resto del dashboard — sin datos simulados.
+        </p>
+      </div>
+    </div>
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="border-t border-navy-border/60 bg-navy-deep/40 mt-8">
+    <div class="max-w-6xl mx-auto px-6 py-8 text-sm text-ink-500 text-center">
+      Ernesto Investing AI — iDeSo · UNMSM · Prof. E. D. Cancho-Rodríguez, MBA (GWU)
+    </div>
+  </footer>
+
+<script>
+lucide.createIcons();
+
+/* =================================================================
+   CONEXIÓN CON LA API — mismo patrón que modulo_svc.html
+   ================================================================= */
+function getApiUrl() {
+  return sessionStorage.getItem('API_URL');
+}
+
+const E = { mercado: null, svc: null };
+
+/* Los 16 modelos del Core de IA del proyecto. Solo 'svc' tiene datos
+   reales disponibles hoy (colecciones predicciones/metricas_modelos). */
+const listaModelos = [
+  { id: 'svc', nombre: 'SVC', tipo: 'Clasif.' },
+  { id: 'lstm_cls', nombre: 'LSTM Classifier', tipo: 'Clasif.' },
+  { id: 'bilstm', nombre: 'BiLSTM Classifier', tipo: 'Clasif.' },
+  { id: 'nlp', nombre: 'NLP (VADER)', tipo: 'Clasif.' },
+  { id: 'xgb', nombre: 'XGBoost', tipo: 'Clasif.' },
+  { id: 'gru', nombre: 'GRU Classifier', tipo: 'Clasif.' },
+  { id: 'llm', nombre: 'LLM (OpenAI)', tipo: 'Clasif.' },
+  { id: 'rfc', nombre: 'RFC', tipo: 'Clasif.' },
+  { id: 'srnn', nombre: 'SimpleRNN', tipo: 'Clasif.' },
+  { id: 'lstm_reg', nombre: 'LSTM Regressor', tipo: 'Regr.' },
+  { id: 'svr', nombre: 'SVRegressor', tipo: 'Regr.' },
+  { id: 'mvlin', nombre: 'MultiVar Lin. Reg.', tipo: 'Regr.' },
+  { id: 'mvpoly', nombre: 'MultiVar Poly Reg.', tipo: 'Regr.' },
+  { id: 'arima_lstm', nombre: 'ARIMA-LSTM', tipo: 'Regr.' },
+  { id: 'ens_cls', nombre: 'Ensamblado Clasif.', tipo: 'Clasif.' },
+  { id: 'ens_reg', nombre: 'Ensamblado Regr.', tipo: 'Regr.' }
+];
+
+function mostrarAviso(tipo, html) {
+  const aviso = document.getElementById('aviso');
+  const estilos = {
+    info:  'bg-sky/10 text-sky border-sky/30',
+    error: 'bg-coral/10 text-coral border-coral/30'
+  };
+  const icono = tipo === 'error' ? 'alert-circle' : 'loader';
+
+  aviso.innerHTML =
+    '<div class="inline-flex items-start gap-2 px-4 py-3 rounded-xl border text-sm ' + estilos[tipo] + '">' +
+      '<i data-lucide="' + icono + '" class="w-4 h-4 mt-0.5 shrink-0 ' + (tipo === 'info' ? 'animate-spin' : '') + '"></i>' +
+      '<span>' + html + '</span>' +
+    '</div>';
+
+  lucide.createIcons();
+}
+
+function limpiarPaneles() {
+  document.getElementById('cuerpoTablaModelos').innerHTML = '';
+  document.getElementById('textoSenal').textContent = 'Sin datos';
+  document.getElementById('subTextoSenal').textContent = '';
+  document.getElementById('hparams-container').innerHTML = '';
+  document.getElementById('metricas').innerHTML = '';
+  document.getElementById('matriz-container').innerHTML = '';
+  ['luzBuy', 'luzHold', 'luzSell'].forEach(id => document.getElementById(id).className = 'luz-semaforo');
+
+  const plot = document.getElementById('plot-candlestick');
+  if (plot) plot.innerHTML = '';
+}
+
+async function verificarSalud() {
+  const apiUrl = getApiUrl();
+  const punto = document.getElementById('puntoApi');
+  const texto = document.getElementById('textoApi');
+
+  if (!apiUrl) {
+    punto.className = 'w-2.5 h-2.5 rounded-full bg-coral shrink-0';
+    texto.textContent = 'API sin configurar';
+    return false;
+  }
+
+  try {
+    const r = await fetch(apiUrl + '/api/salud', { headers: { 'ngrok-skip-browser-warning': 'true' } });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    punto.className = 'w-2.5 h-2.5 rounded-full bg-mint shrink-0';
+    texto.textContent = `API conectada · ${data.documentos_precios} precios · ${data.documentos_predicciones} predicciones`;
+    return true;
+  } catch (e) {
+    punto.className = 'w-2.5 h-2.5 rounded-full bg-coral shrink-0';
+    texto.textContent = 'Sin conexión a la API';
+    return false;
+  }
+}
+
+/* =================================================================
+   PANEL 1: Candlestick real (OHLCV) + SMA/EMA + señal SVC
+   ================================================================= */
+function renderCandlestick(ticker) {
+  const datos = E.mercado.datos;
+  const fechas = datos.map(d => d.fecha);
+  const open = datos.map(d => d.open);
+  const high = datos.map(d => d.high);
+  const low = datos.map(d => d.low);
+  const close = datos.map(d => d.close);
+  const sma20 = datos.map(d => d.sma_20);
+  const sma50 = datos.map(d => d.sma_50);
+  const ema12 = datos.map(d => d.ema_12);
+
+  const tCandle = {
+    type: 'candlestick', name: ticker,
+    x: fechas, open, high, low, close,
+    increasing: { line: { color: '#4ADE80' } },
+    decreasing: { line: { color: '#EF5350' } }
+  };
+
+  const tSMA20 = { type: 'scatter', mode: 'lines', name: 'SMA-20', x: fechas, y: sma20, line: { color: '#3B82F6', width: 1.4 } };
+  const tSMA50 = { type: 'scatter', mode: 'lines', name: 'SMA-50', x: fechas, y: sma50, line: { color: '#C5961A', width: 1.4, dash: 'dot' } };
+  const tEMA12 = { type: 'scatter', mode: 'lines', name: 'EMA-12', x: fechas, y: ema12, line: { color: '#26A69A', width: 1.2 } };
+
+  const trazas = [tCandle, tSMA20, tSMA50, tEMA12];
+
+  const pred = E.svc && E.svc.prediccion;
+  if (pred && pred.senal && fechas.length) {
+    const ultFecha = fechas[fechas.length - 1];
+    const ultClose = close[close.length - 1];
+    const colores = { BUY: '#4ADE80', SELL: '#EF5350', HOLD: '#6B7A99' };
+    const simbolos = { BUY: 'triangle-up', SELL: 'triangle-down', HOLD: 'circle' };
+    const offset = pred.senal === 'BUY' ? 0.985 : pred.senal === 'SELL' ? 1.015 : 1;
+
+    trazas.push({
+      type: 'scatter', mode: 'markers', name: 'Señal SVC: ' + pred.senal,
+      x: [ultFecha], y: [ultClose * offset],
+      marker: { symbol: simbolos[pred.senal], size: 16, color: colores[pred.senal], line: { color: '#0A1428', width: 1 } }
+    });
+  }
+
+  const layout = {
+    paper_bgcolor: 'transparent',
+    plot_bgcolor: 'transparent',
+    font: { family: 'Inter, sans-serif', size: 11, color: '#9FB0CE' },
+    margin: { l: 50, r: 10, t: 10, b: 40 },
+    xaxis: { showgrid: false, linecolor: '#1F3864', type: 'date', rangeslider: { visible: false } },
+    yaxis: { showgrid: true, gridcolor: '#1F3864', linecolor: '#1F3864', zeroline: false, tickprefix: '$' },
+    legend: { orientation: 'h', y: -0.15, font: { color: '#9FB0CE', size: 10 } },
+    hovermode: 'closest'
+  };
+
+  Plotly.react('plot-candlestick', trazas, layout, { responsive: true, displayModeBar: false });
+}
+
+/* =================================================================
+   PANEL 2: Consola de modelos (solo SVC real)
+   ================================================================= */
+function renderTablaModelos() {
+  const m = (E.svc && E.svc.metricas) || {};
+  const p = (E.svc && E.svc.prediccion) || {};
+
+  const claseSenal = { BUY: 'text-mint', SELL: 'text-coral', HOLD: 'text-gold' };
+
+  document.getElementById('cuerpoTablaModelos').innerHTML = listaModelos.map(mod => {
+    if (mod.id === 'svc') {
+      const acc = m.accuracy !== undefined && m.accuracy !== null ? (m.accuracy * 100).toFixed(1) + '%' : '—';
+      const senal = p.senal || '—';
+      return `
+        <tr class="border-b border-navy-border/40">
+          <td class="py-2 pr-2 font-semibold text-white">${mod.nombre}</td>
+          <td class="py-2 pr-2 text-ink-300">${mod.tipo}</td>
+          <td class="py-2 pr-2 text-mint font-bold">${acc}</td>
+          <td class="py-2 font-bold ${claseSenal[p.senal] || 'text-ink-300'}">${senal}</td>
+        </tr>`;
+    }
+    return `
+      <tr class="border-b border-navy-border/40 modelo-item-disabled">
+        <td class="py-2 pr-2 text-ink-300">${mod.nombre}</td>
+        <td class="py-2 pr-2 text-ink-500">${mod.tipo}</td>
+        <td class="py-2 pr-2 text-ink-500">Sin datos reales</td>
+        <td class="py-2 text-ink-500">N/D</td>
+      </tr>`;
+  }).join('');
+}
+
+/* =================================================================
+   PANEL 2b: Señal consolidada real + hiperparámetros + métricas
+   ================================================================= */
+function renderSenalYMetricas() {
+  const p = (E.svc && E.svc.prediccion) || {};
+  const m = (E.svc && E.svc.metricas) || {};
+
+  ['luzBuy', 'luzHold', 'luzSell'].forEach(id => document.getElementById(id).className = 'luz-semaforo');
+
+  if (p.senal === 'BUY') {
+    document.getElementById('luzBuy').classList.add('on-buy');
+    document.getElementById('textoSenal').textContent = '▲ BUY';
+    document.getElementById('textoSenal').className = 'text-center font-extrabold text-xl mt-2 text-mint';
+  } else if (p.senal === 'SELL') {
+    document.getElementById('luzSell').classList.add('on-sell');
+    document.getElementById('textoSenal').textContent = '▼ SELL';
+    document.getElementById('textoSenal').className = 'text-center font-extrabold text-xl mt-2 text-coral';
+  } else if (p.senal === 'HOLD') {
+    document.getElementById('luzHold').classList.add('on-hold');
+    document.getElementById('textoSenal').textContent = '● HOLD';
+    document.getElementById('textoSenal').className = 'text-center font-extrabold text-xl mt-2 text-gold';
+  } else {
+    document.getElementById('textoSenal').textContent = 'Sin predicción disponible';
+    document.getElementById('textoSenal').className = 'text-center font-extrabold text-xl mt-2 text-ink-500';
+  }
+
+  const conf = p.confianza !== undefined && p.confianza !== null ? (p.confianza * 100).toFixed(1) + '%' : '—';
+  document.getElementById('subTextoSenal').textContent = p.senal ? `Confianza del modelo SVC: ${conf}` : '';
+
+  const hparams = document.getElementById('hparams-container');
+  if (m.mejor_kernel !== undefined) {
+    hparams.innerHTML = `
+      <span class="px-3 py-1.5 rounded-lg border border-navy-border bg-navy-deep text-[11px] font-mono text-ink-300">kernel=<span class="text-sky font-bold">${m.mejor_kernel}</span></span>
+      <span class="px-3 py-1.5 rounded-lg border border-navy-border bg-navy-deep text-[11px] font-mono text-ink-300">C=<span class="text-sky font-bold">${m.mejor_C}</span></span>
+      <span class="px-3 py-1.5 rounded-lg border border-navy-border bg-navy-deep text-[11px] font-mono text-ink-300">gamma=<span class="text-sky font-bold">${m.mejor_gamma}</span></span>
+    `;
+  } else {
+    hparams.innerHTML = '<span class="text-xs text-ink-500">Hiperparámetros no disponibles</span>';
+  }
+
+  document.getElementById('metricas').innerHTML = [
+    { l: 'Accuracy',  v: m.accuracy,  c: 'text-sky',  bgc: 'bg-sky' },
+    { l: 'Precision', v: m.precision, c: 'text-mint', bgc: 'bg-mint' },
+    { l: 'Recall',    v: m.recall,    c: 'text-gold', bgc: 'bg-gold' },
+    { l: 'F1-Score',  v: m.f1,        c: 'text-teal', bgc: 'bg-teal' }
+  ].map(x => {
+    const pct = (x.v !== undefined && x.v !== null) ? (x.v * 100).toFixed(1) : '0.0';
+    return `
+    <div class="px-4 py-3 rounded-xl bg-navy-deep border border-navy-border flex flex-col justify-between">
+      <div class="text-[10px] uppercase font-bold tracking-wide text-ink-300 mb-1">${x.l}</div>
+      <div class="text-xl font-extrabold ${x.c}">${pct}%</div>
+      <div class="h-1.5 w-full bg-navy-base rounded-full mt-2 overflow-hidden">
+        <div class="h-full ${x.bgc}" style="width: ${pct}%"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* =================================================================
+   PANEL 3: Matriz de confusión real
+   ================================================================= */
+function renderMatriz() {
+  const m = (E.svc && E.svc.metricas) || {};
+  const cont = document.getElementById('matriz-container');
+  const cm = m.matriz_confusion;
+
+  if (!cm) {
+    cont.innerHTML = '<p class="text-sm text-ink-500">Matriz de confusión no disponible para este ticker.</p>';
+    return;
+  }
+
+  const total = cm[0][0] + cm[0][1] + cm[1][0] + cm[1][1];
+  const maxVal = Math.max(cm[0][0], cm[0][1], cm[1][0], cm[1][1]);
+
+  function celda(val, isDiag, realLbl) {
+    const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
+    const intensity = maxVal > 0 ? val / maxVal : 0;
+    const baseColor = isDiag ? '38, 166, 154' : '239, 83, 80';
+    const bg = `rgba(${baseColor}, ${0.05 + (intensity * 0.6)})`;
+    const textColor = intensity > 0.5 ? 'text-white' : 'text-ink-100';
+
+    return `
+      <div class="flex flex-col items-center justify-center p-3 rounded-xl border ${isDiag ? 'border-teal/30' : 'border-coral/20'} transition-transform hover:scale-[1.02]" style="background: ${bg}; min-height: 85px;">
+        <div class="text-[10px] font-bold text-ink-300 mb-1 uppercase">${realLbl} Real</div>
+        <div class="text-2xl font-extrabold ${textColor}">${val}</div>
+        <div class="text-[10px] font-bold text-ink-300 mt-1 opacity-80">${pct}%</div>
+      </div>`;
+  }
+
+  cont.innerHTML = `
+    <div class="flex w-full overflow-x-auto pb-2">
+      <div class="flex flex-col justify-center items-center mr-2 shrink-0">
+        <div class="text-[10px] font-bold text-ink-300 uppercase tracking-widest" style="writing-mode: vertical-rl; transform: rotate(180deg);">Clase Real</div>
+      </div>
+      <div class="flex flex-col justify-center gap-3 mr-3 pt-6 text-right shrink-0">
+        <div class="h-[85px] flex items-center justify-end text-[10px] font-bold text-ink-300 uppercase">SELL</div>
+        <div class="h-[85px] flex items-center justify-end text-[10px] font-bold text-ink-300 uppercase">BUY</div>
+      </div>
+      <div class="flex-1 min-w-[220px]">
+        <div class="grid grid-cols-2 gap-3 mb-2 text-center">
+          <div class="text-[10px] font-bold text-ink-300 uppercase">Pred. SELL</div>
+          <div class="text-[10px] font-bold text-ink-300 uppercase">Pred. BUY</div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          ${celda(cm[0][0], true, 'SELL')} ${celda(cm[0][1], false, 'SELL')}
+          ${celda(cm[1][0], false, 'BUY')}  ${celda(cm[1][1], true, 'BUY')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* =================================================================
+   LÓGICA PRINCIPAL — igual patrón que modulo_svc.html
+   ================================================================= */
+async function cargarDashboard() {
+  const ticker = document.getElementById('selTicker').value;
+  const apiUrl = getApiUrl();
+
+  if (!apiUrl) {
+    mostrarAviso('error', 'No hay URL de API. Vuelve al portal y verifica la conexión.');
+    limpiarPaneles();
+    return;
+  }
+
+  try {
+    mostrarAviso('info', 'Obteniendo datos reales de ' + ticker + ' desde MongoDB vía FastAPI...');
+
+    const headers = { 'ngrok-skip-browser-warning': 'true' };
+    const [rMercado, rSVC] = await Promise.all([
+      fetch(apiUrl + '/api/mercado/' + ticker, { headers }),
+      fetch(apiUrl + '/api/svc/' + ticker, { headers })
+    ]);
+
+    if (!rMercado.ok) throw new Error('HTTP ' + rMercado.status);
+
+    E.mercado = await rMercado.json();
+    E.svc = rSVC.ok ? await rSVC.json() : null;
+
+    renderCandlestick(ticker);
+    renderTablaModelos();
+    renderSenalYMetricas();
+    renderMatriz();
+
+    document.getElementById('aviso').innerHTML = '';
+  } catch (e) {
+    mostrarAviso('error', 'No hay URL de API. Vuelve al portal y verifica la conexión.');
+    limpiarPaneles();
+  } finally {
+    verificarSalud();
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  verificarSalud();
+  cargarDashboard();
+});
+</script>
+</body>
+</html>
