@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InvestAI | Dashboard Completo</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          navy: { deep: '#0A1428', base: '#0D1B33', card: '#122548', border: '#1F3864' },
+          teal: '#26A69A', mint: '#4ADE80', gold: '#C5961A', sky: '#3B82F6', coral: '#EF5350',
+          ink: { 100: '#E2E8F3', 300: '#9FB0CE', 500: '#6B7A99' }
+        },
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+      }
+    }
+  };
+</script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+<style>
+  a:focus-visible, button:focus-visible, select:focus-visible {
+    outline: 2px solid #4ADE80;
+    outline-offset: 3px;
+    border-radius: 0.5rem;
+  }
+  ::selection { background: #26A69A; color: #0A1428; }
+
+  .custom-scroll::-webkit-scrollbar { width: 6px; }
+  .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+  .custom-scroll::-webkit-scrollbar-thumb { background: #1F3864; border-radius: 10px; }
+  .custom-scroll::-webkit-scrollbar-thumb:hover { background: #3B82F6; }
+
+  .empty-space { min-height: 80px; }
+
+  .modelo-item-disabled { opacity: 0.4; }
+
+  .luz-semaforo {
+    width: 42px; height: 42px; border-radius: 9999px;
+    border: 3px solid #1F3864; opacity: 0.25; transition: all 0.3s ease;
+  }
+  .luz-semaforo.on-buy  { background: #4ADE80; opacity: 1; border-color: #4ADE80; box-shadow: 0 0 14px rgba(74,222,128,0.6); }
+  .luz-semaforo.on-sell { background: #EF5350; opacity: 1; border-color: #EF5350; box-shadow: 0 0 14px rgba(239,83,80,0.6); }
+</style>
+</head>
+
+<body class="bg-navy-base text-ink-100 font-sans antialiased">
+
+  <!-- ============ HEADER ============ -->
+  <header class="border-b border-navy-border/60 bg-navy-deep/40">
+    <div class="max-w-6xl mx-auto px-6 py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-mint/15 text-mint flex items-center justify-center shrink-0">
+          <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">Ernesto Investing AI</h1>
+          <p class="text-sm text-ink-300">Dashboard Completo — Mercado, Modelos y Backtesting</p>
+        </div>
+      </div>
+      <nav class="flex flex-wrap gap-2">
+        <a href="home.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-navy-border text-ink-300 text-sm hover:border-teal/60 hover:text-teal transition-colors">
+          <i data-lucide="home" class="w-4 h-4"></i> Portal
+        </a>
+        <a href="modulo_svc.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-navy-border text-ink-300 text-sm hover:border-teal/60 hover:text-teal transition-colors">
+          <i data-lucide="gauge" class="w-4 h-4"></i> Clasificador SVC
+        </a>
+        <a href="modulo_mercado.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-navy-border text-ink-300 text-sm hover:border-teal/60 hover:text-teal transition-colors">
+          <i data-lucide="candlestick-chart" class="w-4 h-4"></i> Dashboard de Mercado
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ============ CONTROLES ============ -->
+  <section class="border-b border-navy-border/60 bg-navy-card/30">
+    <div class="max-w-6xl mx-auto px-6 py-5 flex flex-wrap items-end justify-between gap-4">
+      <div class="flex flex-col gap-1.5">
+        <label for="selTicker" class="text-xs font-semibold uppercase tracking-wide text-ink-300">Ticker</label>
+        <select id="selTicker" onchange="cargarDashboard()"
+          class="px-4 py-2.5 rounded-xl bg-navy-deep border border-navy-border text-ink-100 text-sm focus:border-mint outline-none min-w-[180px]">
+          <option value="FSM">FSM</option>
+          <option value="VOLCABC1.LM">VOLCABC1.LM</option>
+          <option value="ABX.TO">ABX.TO</option>
+          <option value="BVN" selected>BVN</option>
+          <option value="BHP">BHP</option>
+        </select>
+      </div>
+
+      <button onclick="cargarDashboard()"
+        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-mint text-navy-deep text-sm font-bold hover:brightness-110 transition">
+        <i data-lucide="refresh-cw" class="w-4 h-4"></i> Actualizar Datos Reales
+      </button>
+
+      <div id="estadoApi" class="flex items-center gap-2 px-3 py-2 rounded-lg border border-navy-border bg-navy-deep text-xs text-ink-300">
+        <span id="puntoApi" class="w-2.5 h-2.5 rounded-full bg-ink-500 shrink-0"></span>
+        <span id="textoApi">Verificando API...</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CONTENIDO ============ -->
+  <main class="max-w-6xl mx-auto px-6 py-8">
+    <div id="aviso" class="mb-6"></div>
+
+    <!-- FILA 1: CANDLESTICK REAL -->
+    <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6 mb-6">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <i data-lucide="line-chart" class="w-4 h-4 text-mint"></i>
+          <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Mercado — Velas Reales (OHLCV) + SMA/EMA + Señal SVC</span>
+        </div>
+        <div class="flex gap-4 text-[10px] font-bold text-ink-300 uppercase">
+          <span class="flex items-center gap-1"><span class="text-mint text-sm">▲</span> BUY</span>
+          <span class="flex items-center gap-1"><span class="text-coral text-sm">▼</span> SELL</span>
+        </div>
+      </div>
+      <div id="plot-candlestick" class="w-full h-[420px] empty-space"></div>
+    </div>
+
+    <!-- FILA 2: CONSOLA DE MODELOS + SEÑAL CONSOLIDADA -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+      <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6">
+        <div class="flex items-center gap-2 mb-4">
+          <i data-lucide="cpu" class="w-4 h-4 text-mint"></i>
+          <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Consola del Core de IA — Modelos</span>
+        </div>
+        <div class="overflow-x-auto custom-scroll">
+          <table class="w-full text-xs">
+            <thead>
+              <tr class="text-left text-ink-300 uppercase text-[10px] border-b border-navy-border">
+                <th class="py-2 pr-2">Modelo</th>
+                <th class="py-2 pr-2">Tipo</th>
+                <th class="py-2 pr-2">Accuracy / RMSE</th>
+                <th class="py-2">Señal</th>
+              </tr>
+            </thead>
+            <tbody id="cuerpoTablaModelos"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6 flex flex-col">
+        <div class="flex items-center gap-2 mb-4">
+          <i data-lucide="gauge" class="w-4 h-4 text-mint"></i>
+          <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Señal Real del SVC (Ensamblado)</span>
+        </div>
+        <div class="flex items-center justify-center gap-5 py-3">
+          <div class="luz-semaforo" id="luzBuy"></div>
+          <div class="luz-semaforo" id="luzSell"></div>
+        </div>
+        <div id="textoSenal" class="text-center font-extrabold text-xl mt-2 text-white">Cargando...</div>
+        <div id="subTextoSenal" class="text-center text-xs text-ink-300 mt-1"></div>
+
+        <div id="hparams-container" class="flex flex-wrap justify-center gap-2 mt-4"></div>
+
+        <div id="metricas" class="grid grid-cols-2 gap-3 mt-4"></div>
+      </div>
+    </div>
+
+    <!-- FILA 3: MATRIZ DE CONFUSIÓN -->
+    <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6 mb-6">
+      <div class="flex items-center gap-2 mb-4">
+        <i data-lucide="grid-3x3" class="w-4 h-4 text-mint"></i>
+        <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Matriz de Confusión Real (Test Set)</span>
+      </div>
+      <div id="matriz-container" class="py-2 empty-space"></div>
+    </div>
+
+    <!-- FILA 4: BACKTESTING REAL (Notebook 5 → resultados_backtest → /api/backtest) -->
+    <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6 mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <i data-lucide="bar-chart-3" class="w-4 h-4 text-mint"></i>
+          <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Backtest Real — Cruce SMA 20/50 (Notebook 5)</span>
+        </div>
+        <a href="reportes_backtesting.html" class="text-[11px] font-semibold text-teal hover:text-mint inline-flex items-center gap-1">
+          Ver reporte completo <i data-lucide="arrow-right" class="w-3 h-3"></i>
+        </a>
+      </div>
+
+      <div id="backtest-vacio" class="hidden rounded-xl border border-dashed border-navy-border bg-navy-deep/60 p-6 flex flex-col items-center text-center gap-2">
+        <i data-lucide="clock" class="w-5 h-5 text-ink-500"></i>
+        <p class="text-sm text-ink-300 max-w-xl">
+          No hay backtest guardado para este ticker. Ejecuta el Notebook 5 para poblar la colección
+          <code class="text-sky">resultados_backtest</code> en MongoDB.
+        </p>
+      </div>
+
+      <div id="backtest-contenido">
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+          <div class="rounded-xl border border-navy-border bg-navy-deep p-3 text-center">
+            <div id="btKpiReturn" class="text-lg font-extrabold text-white">—</div>
+            <div class="text-[9px] uppercase tracking-wide text-ink-300 mt-1 font-semibold">Retorno Total</div>
+          </div>
+          <div class="rounded-xl border border-navy-border bg-navy-deep p-3 text-center">
+            <div id="btKpiSharpe" class="text-lg font-extrabold text-white">—</div>
+            <div class="text-[9px] uppercase tracking-wide text-ink-300 mt-1 font-semibold">Sharpe</div>
+          </div>
+          <div class="rounded-xl border border-navy-border bg-navy-deep p-3 text-center">
+            <div id="btKpiDrawdown" class="text-lg font-extrabold text-coral">—</div>
+            <div class="text-[9px] uppercase tracking-wide text-ink-300 mt-1 font-semibold">Max Drawdown</div>
+          </div>
+          <div class="rounded-xl border border-navy-border bg-navy-deep p-3 text-center">
+            <div id="btKpiWinrate" class="text-lg font-extrabold text-white">—</div>
+            <div class="text-[9px] uppercase tracking-wide text-ink-300 mt-1 font-semibold">Win Rate</div>
+          </div>
+          <div class="rounded-xl border border-navy-border bg-navy-deep p-3 text-center">
+            <div id="btKpiTrades" class="text-lg font-extrabold text-white">—</div>
+            <div class="text-[9px] uppercase tracking-wide text-ink-300 mt-1 font-semibold">Operaciones</div>
+          </div>
+        </div>
+        <div id="plot-equity" class="w-full h-[260px] empty-space"></div>
+      </div>
+    </div>
+
+    <!-- FILA 5: LSTM REGRESSOR (Notebook 6) + SENTIMIENTO NLP (Notebook 7) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6">
+        <div class="flex items-center gap-2 mb-3">
+          <i data-lucide="trending-up" class="w-4 h-4 text-mint"></i>
+          <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Pronóstico LSTM Regressor (Notebook 6)</span>
+        </div>
+        <div id="lstmreg-vacio" class="hidden rounded-xl border border-dashed border-navy-border bg-navy-deep/60 p-6 flex flex-col items-center text-center gap-2">
+          <i data-lucide="clock" class="w-5 h-5 text-ink-500"></i>
+          <p class="text-sm text-ink-300 max-w-md">
+            No hay pronóstico guardado para este ticker. Ejecuta el Notebook 6 para poblar
+            <code class="text-sky">predicciones_lstm</code> en MongoDB.
+          </p>
+        </div>
+        <div id="lstmreg-contenido">
+          <div id="plot-lstmreg" class="w-full h-[260px] empty-space"></div>
+          <div id="lstmreg-metricas" class="grid grid-cols-4 gap-2 mt-3"></div>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-navy-border/70 bg-navy-card/60 p-6">
+        <div class="flex items-center gap-2 mb-3">
+          <i data-lucide="newspaper" class="w-4 h-4 text-mint"></i>
+          <span class="text-xs font-semibold uppercase tracking-wide text-ink-300">Sentimiento de Noticias — VADER (Notebook 7)</span>
+        </div>
+        <div id="nlp-vacio" class="hidden rounded-xl border border-dashed border-navy-border bg-navy-deep/60 p-6 flex flex-col items-center text-center gap-2">
+          <i data-lucide="clock" class="w-5 h-5 text-ink-500"></i>
+          <p class="text-sm text-ink-300 max-w-md">
+            No hay análisis de sentimiento guardado para este ticker. Ejecuta el Notebook 7 para poblar
+            <code class="text-sky">sentimiento_nlp</code> en MongoDB.
+          </p>
+        </div>
+        <div id="nlp-contenido">
+          <div class="flex items-center gap-4 mb-3">
+            <div id="nlp-badge" class="px-4 py-2 rounded-xl border text-sm font-extrabold text-center min-w-[110px]">—</div>
+            <div>
+              <div class="text-xs text-ink-300">Score promedio (VADER compound)</div>
+              <div id="nlp-score" class="text-lg font-bold text-white">—</div>
+              <div id="nlp-cantidad" class="text-[11px] text-ink-500"></div>
+            </div>
+          </div>
+          <div id="nlp-noticias" class="space-y-2 max-h-[190px] overflow-y-auto custom-scroll pr-1"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="border-t border-navy-border/60 bg-navy-deep/40 mt-8">
+    <div class="max-w-6xl mx-auto px-6 py-8 text-sm text-ink-500 text-center">
+      Ernesto Investing AI — iDeSo · UNMSM · Prof. E. D. Cancho-Rodríguez, MBA (GWU)
+    </div>
+  </footer>
+
+<script>
+lucide.createIcons();
+
+/* =================================================================
+   CONEXIÓN CON LA API — mismo patrón que modulo_svc.html
+   ================================================================= */
+function getApiUrl() {
+  return sessionStorage.getItem('API_URL');
+}
+
+const E = { mercado: null, svc: null, rnn: null, backtest: null, lstmReg: null, nlp: null };
+
+/* Los 16 modelos del Core de IA del proyecto. 'svc', las 4 arquitecturas
+   RNN (modeloKey enlaza con las claves reales guardadas en MongoDB por el
+   Notebook 4), 'lstm_reg' y 'nlp' tienen datos reales disponibles hoy. */
+const listaModelos = [
+  { id: 'svc', nombre: 'SVC', tipo: 'Clasif.', fuente: 'svc' },
+  { id: 'lstm_cls', nombre: 'LSTM Classifier', tipo: 'Clasif.', fuente: 'rnn', modeloKey: 'LSTM' },
+  { id: 'bilstm', nombre: 'BiLSTM Classifier', tipo: 'Clasif.', fuente: 'rnn', modeloKey: 'BiLSTM' },
+  { id: 'nlp', nombre: 'NLP (VADER)', tipo: 'Clasif.', fuente: 'nlp' },
+  { id: 'xgb', nombre: 'XGBoost', tipo: 'Clasif.' },
+  { id: 'gru', nombre: 'GRU Classifier', tipo: 'Clasif.', fuente: 'rnn', modeloKey: 'GRU' },
+  { id: 'llm', nombre: 'LLM (OpenAI)', tipo: 'Clasif.' },
+  { id: 'rfc', nombre: 'RFC', tipo: 'Clasif.' },
+  { id: 'srnn', nombre: 'SimpleRNN', tipo: 'Clasif.', fuente: 'rnn', modeloKey: 'SimpleRNN' },
+  { id: 'lstm_reg', nombre: 'LSTM Regressor', tipo: 'Regr.', fuente: 'lstmReg' },
+  { id: 'svr', nombre: 'SVRegressor', tipo: 'Regr.' },
+  { id: 'mvlin', nombre: 'MultiVar Lin. Reg.', tipo: 'Regr.' },
+  { id: 'mvpoly', nombre: 'MultiVar Poly Reg.', tipo: 'Regr.' },
+  { id: 'arima_lstm', nombre: 'ARIMA-LSTM', tipo: 'Regr.' },
+  { id: 'ens_cls', nombre: 'Ensamblado Clasif.', tipo: 'Clasif.' },
+  { id: 'ens_reg', nombre: 'Ensamblado Regr.', tipo: 'Regr.' }
+];
+
+function mostrarAviso(tipo, html) {
+  const aviso = document.getElementById('aviso');
+  const estilos = {
+    info:  'bg-sky/10 text-sky border-sky/30',
+    error: 'bg-coral/10 text-coral border-coral/30'
+  };
+  const icono = tipo === 'error' ? 'alert-circle' : 'loader';
+
+  aviso.innerHTML =
+    '<div class="inline-flex items-start gap-2 px-4 py-3 rounded-xl border text-sm ' + estilos[tipo] + '">' +
+      '<i data-lucide="' + icono + '" class="w-4 h-4 mt-0.5 shrink-0 ' + (tipo === 'info' ? 'animate-spin' : '') + '"></i>' +
+      '<span>' + html + '</span>' +
+    '</div>';
+
+  lucide.createIcons();
+}
+
+function limpiarPaneles() {
+  document.getElementById('cuerpoTablaModelos').innerHTML = '';
+  document.getElementById('textoSenal').textContent = 'Sin datos';
+  document.getElementById('subTextoSenal').textContent = '';
+  document.getElementById('hparams-container').innerHTML = '';
+  document.getElementById('metricas').innerHTML = '';
+  document.getElementById('matriz-container').innerHTML = '';
+  ['luzBuy', 'luzSell'].forEach(id => document.getElementById(id).className = 'luz-semaforo');
+
+  const plot = document.getElementById('plot-candlestick');
+  if (plot) plot.innerHTML = '';
+
+  ['btKpiReturn', 'btKpiSharpe', 'btKpiDrawdown', 'btKpiWinrate', 'btKpiTrades'].forEach(id => {
+    document.getElementById(id).textContent = '—';
+  });
+  const plotEquity = document.getElementById('plot-equity');
+  if (plotEquity) plotEquity.innerHTML = '';
+  document.getElementById('backtest-contenido').classList.remove('hidden');
+  document.getElementById('backtest-vacio').classList.add('hidden');
+
+  const plotLstmReg = document.getElementById('plot-lstmreg');
+  if (plotLstmReg) plotLstmReg.innerHTML = '';
+  document.getElementById('lstmreg-metricas').innerHTML = '';
+  document.getElementById('lstmreg-contenido').classList.remove('hidden');
+  document.getElementById('lstmreg-vacio').classList.add('hidden');
+
+  document.getElementById('nlp-badge').textContent = '—';
+  document.getElementById('nlp-badge').className = 'px-4 py-2 rounded-xl border text-sm font-extrabold text-center min-w-[110px]';
+  document.getElementById('nlp-score').textContent = '—';
+  document.getElementById('nlp-cantidad').textContent = '';
+  document.getElementById('nlp-noticias').innerHTML = '';
+  document.getElementById('nlp-contenido').classList.remove('hidden');
+  document.getElementById('nlp-vacio').classList.add('hidden');
+}
+
+async function verificarSalud() {
+  const apiUrl = getApiUrl();
+  const punto = document.getElementById('puntoApi');
+  const texto = document.getElementById('textoApi');
+
+  if (!apiUrl) {
+    punto.className = 'w-2.5 h-2.5 rounded-full bg-coral shrink-0';
+    texto.textContent = 'API sin configurar';
+    return false;
+  }
+
+  try {
+    const r = await fetch(apiUrl + '/api/salud', { headers: { 'ngrok-skip-browser-warning': 'true' } });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    punto.className = 'w-2.5 h-2.5 rounded-full bg-mint shrink-0';
+    texto.textContent = `API conectada · ${data.documentos_precios} precios · ${data.documentos_predicciones} predicciones`;
+    return true;
+  } catch (e) {
+    punto.className = 'w-2.5 h-2.5 rounded-full bg-coral shrink-0';
+    texto.textContent = 'Sin conexión a la API';
+    return false;
+  }
+}
+
+/* =================================================================
+   PANEL 1: Candlestick real (OHLCV) + SMA/EMA + señal SVC
+   ================================================================= */
+function renderCandlestick(ticker) {
+  const datos = E.mercado.datos;
+  const fechas = datos.map(d => d.fecha);
+  const open = datos.map(d => d.open);
+  const high = datos.map(d => d.high);
+  const low = datos.map(d => d.low);
+  const close = datos.map(d => d.close);
+  const sma20 = datos.map(d => d.sma_20);
+  const sma50 = datos.map(d => d.sma_50);
+  const ema12 = datos.map(d => d.ema_12);
+
+  const tCandle = {
+    type: 'candlestick', name: ticker,
+    x: fechas, open, high, low, close,
+    increasing: { line: { color: '#4ADE80' } },
+    decreasing: { line: { color: '#EF5350' } }
+  };
+
+  const tSMA20 = { type: 'scatter', mode: 'lines', name: 'SMA-20', x: fechas, y: sma20, line: { color: '#3B82F6', width: 1.4 } };
+  const tSMA50 = { type: 'scatter', mode: 'lines', name: 'SMA-50', x: fechas, y: sma50, line: { color: '#C5961A', width: 1.4, dash: 'dot' } };
+  const tEMA12 = { type: 'scatter', mode: 'lines', name: 'EMA-12', x: fechas, y: ema12, line: { color: '#26A69A', width: 1.2 } };
+
+  const trazas = [tCandle, tSMA20, tSMA50, tEMA12];
+
+  const pred = E.svc && E.svc.prediccion;
+  if (pred && pred.senal && fechas.length) {
+    const ultFecha = fechas[fechas.length - 1];
+    const ultClose = close[close.length - 1];
+    const colores = { BUY: '#4ADE80', SELL: '#EF5350' };
+    const simbolos = { BUY: 'triangle-up', SELL: 'triangle-down' };
+    const offset = pred.senal === 'BUY' ? 0.985 : pred.senal === 'SELL' ? 1.015 : 1;
+
+    trazas.push({
+      type: 'scatter', mode: 'markers', name: 'Señal SVC: ' + pred.senal,
+      x: [ultFecha], y: [ultClose * offset],
+      marker: { symbol: simbolos[pred.senal], size: 16, color: colores[pred.senal], line: { color: '#0A1428', width: 1 } }
+    });
+  }
+
+  const layout = {
+    paper_bgcolor: 'transparent',
+    plot_bgcolor: 'transparent',
+    font: { family: 'Inter, sans-serif', size: 11, color: '#9FB0CE' },
+    margin: { l: 50, r: 10, t: 10, b: 40 },
+    xaxis: { showgrid: false, linecolor: '#1F3864', type: 'date', rangeslider: { visible: false } },
+    yaxis: { showgrid: true, gridcolor: '#1F3864', linecolor: '#1F3864', zeroline: false, tickprefix: '$' },
+    legend: { orientation: 'h', y: -0.15, font: { color: '#9FB0CE', size: 10 } },
+    hovermode: 'closest'
+  };
+
+  Plotly.react('plot-candlestick', trazas, layout, { responsive: true, displayModeBar: false });
+}
+
+/* =================================================================
+   PANEL 2: Consola de modelos (solo SVC real)
+   ================================================================= */
+function renderTablaModelos() {
+  const claseSenal = { BUY: 'text-mint', SELL: 'text-coral' };
+
+  function filaReal(mod, acc, senal) {
+    return `
+      <tr class="border-b border-navy-border/40">
+        <td class="py-2 pr-2 font-semibold text-white">${mod.nombre}</td>
+        <td class="py-2 pr-2 text-ink-300">${mod.tipo}</td>
+        <td class="py-2 pr-2 text-mint font-bold">${acc}</td>
+        <td class="py-2 font-bold ${claseSenal[senal] || 'text-ink-300'}">${senal || '—'}</td>
+      </tr>`;
+  }
+
+  function filaVacia(mod) {
+    return `
+      <tr class="border-b border-navy-border/40 modelo-item-disabled">
+        <td class="py-2 pr-2 text-ink-300">${mod.nombre}</td>
+        <td class="py-2 pr-2 text-ink-500">${mod.tipo}</td>
+        <td class="py-2 pr-2 text-ink-500">Sin datos reales</td>
+        <td class="py-2 text-ink-500">N/D</td>
+      </tr>`;
+  }
+
+  document.getElementById('cuerpoTablaModelos').innerHTML = listaModelos.map(mod => {
+    if (mod.fuente === 'svc') {
+      const m = (E.svc && E.svc.metricas) || {};
+      const p = (E.svc && E.svc.prediccion) || {};
+      if (!p.senal) return filaVacia(mod);
+      const acc = m.accuracy !== undefined && m.accuracy !== null ? (m.accuracy * 100).toFixed(1) + '%' : '—';
+      return filaReal(mod, acc, p.senal);
+    }
+
+    if (mod.fuente === 'rnn') {
+      const entrada = E.rnn && E.rnn.modelos && E.rnn.modelos[mod.modeloKey];
+      if (!entrada) return filaVacia(mod);
+      const acc = entrada.metricas && entrada.metricas.accuracy !== undefined && entrada.metricas.accuracy !== null
+        ? (entrada.metricas.accuracy * 100).toFixed(1) + '%' : '—';
+      return filaReal(mod, acc, entrada.prediccion && entrada.prediccion.senal);
+    }
+
+    if (mod.fuente === 'lstmReg') {
+      if (!E.lstmReg || !E.lstmReg.metricas) return filaVacia(mod);
+      const rmse = E.lstmReg.metricas.rmse_usd !== undefined ? '$' + E.lstmReg.metricas.rmse_usd.toFixed(2) : '—';
+      return `
+        <tr class="border-b border-navy-border/40">
+          <td class="py-2 pr-2 font-semibold text-white">${mod.nombre}</td>
+          <td class="py-2 pr-2 text-ink-300">${mod.tipo}</td>
+          <td class="py-2 pr-2 text-sky font-bold">RMSE ${rmse}</td>
+          <td class="py-2 font-bold text-ink-300">Pronóstico</td>
+        </tr>`;
+    }
+
+    if (mod.fuente === 'nlp') {
+      if (!E.nlp) return filaVacia(mod);
+      const claseNlp = { Bullish: 'text-mint', Bearish: 'text-coral', Neutral: 'text-gold' };
+      return `
+        <tr class="border-b border-navy-border/40">
+          <td class="py-2 pr-2 font-semibold text-white">${mod.nombre}</td>
+          <td class="py-2 pr-2 text-ink-300">${mod.tipo}</td>
+          <td class="py-2 pr-2 text-sky font-bold">score ${E.nlp.score_promedio !== undefined ? E.nlp.score_promedio.toFixed(3) : '—'}</td>
+          <td class="py-2 font-bold ${claseNlp[E.nlp.clasificacion_general] || 'text-ink-300'}">${E.nlp.clasificacion_general || '—'}</td>
+        </tr>`;
+    }
+
+    return filaVacia(mod);
+  }).join('');
+}
+
+/* =================================================================
+   PANEL 4: Backtest real (Notebook 5) — KPIs + curva de equity
+   ================================================================= */
+function renderBacktest() {
+  const contenido = document.getElementById('backtest-contenido');
+  const vacio = document.getElementById('backtest-vacio');
+
+  if (!E.backtest) {
+    contenido.classList.add('hidden');
+    vacio.classList.remove('hidden');
+    return;
+  }
+  contenido.classList.remove('hidden');
+  vacio.classList.add('hidden');
+
+  const bt = E.backtest;
+  const retorno = ((bt.retorno_total ?? 0) * 100);
+  const elemReturn = document.getElementById('btKpiReturn');
+  elemReturn.textContent = (retorno >= 0 ? '+' : '') + retorno.toFixed(2) + '%';
+  elemReturn.className = 'text-lg font-extrabold ' + (retorno >= 0 ? 'text-mint' : 'text-coral');
+
+  document.getElementById('btKpiSharpe').textContent = bt.sharpe_ratio !== null && bt.sharpe_ratio !== undefined ? bt.sharpe_ratio.toFixed(2) : 'N/D';
+  document.getElementById('btKpiDrawdown').textContent = ((bt.max_drawdown ?? 0) * 100).toFixed(2) + '%';
+  document.getElementById('btKpiWinrate').textContent = bt.win_rate !== null && bt.win_rate !== undefined ? ((bt.win_rate) * 100).toFixed(1) + '%' : 'N/D';
+  document.getElementById('btKpiTrades').textContent = bt.num_operaciones ?? (bt.operaciones || []).length;
+
+  const curva = bt.curva_equity || [];
+  const traza = {
+    type: 'scatter', mode: 'lines', name: 'Equity Estrategia SMA 20/50',
+    x: curva.map(p => p.fecha), y: curva.map(p => p.valor),
+    line: { color: '#4ADE80', width: 2 },
+    hovertemplate: '%{x}<br>$%{y:,.2f}<extra></extra>'
+  };
+  const layout = {
+    paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+    font: { family: 'Inter, sans-serif', size: 10, color: '#9FB0CE' },
+    margin: { l: 55, r: 10, t: 10, b: 30 },
+    xaxis: { showgrid: false, linecolor: '#1F3864' },
+    yaxis: { showgrid: true, gridcolor: '#1F3864', linecolor: '#1F3864', tickprefix: '$' },
+    showlegend: false
+  };
+  Plotly.react('plot-equity', [traza], layout, { responsive: true, displayModeBar: false });
+}
+
+/* =================================================================
+   PANEL 5: LSTM Regressor (Notebook 6) — pronóstico con bandas
+   ================================================================= */
+function renderLstmRegressor() {
+  const contenido = document.getElementById('lstmreg-contenido');
+  const vacio = document.getElementById('lstmreg-vacio');
+
+  if (!E.lstmReg || !E.lstmReg.pronostico) {
+    contenido.classList.add('hidden');
+    vacio.classList.remove('hidden');
+    return;
+  }
+  contenido.classList.remove('hidden');
+  vacio.classList.add('hidden');
+
+  const horizontes = E.lstmReg.pronostico.horizontes || {};
+  const horizonteMax = Object.keys(horizontes).map(Number).sort((a, b) => b - a)[0];
+  const puntos = horizonteMax ? horizontes[String(horizonteMax)] : [];
+
+  const trazaPred = {
+    type: 'scatter', mode: 'lines', name: 'Precio proyectado',
+    x: puntos.map(p => p.fecha_proyectada), y: puntos.map(p => p.precio_proyectado_usd),
+    line: { color: '#3B82F6', width: 2 }
+  };
+  const trazaSup = {
+    type: 'scatter', mode: 'lines', name: 'Banda superior (95%)',
+    x: puntos.map(p => p.fecha_proyectada), y: puntos.map(p => p.banda_superior),
+    line: { color: '#1F3864', width: 1, dash: 'dot' }, showlegend: false
+  };
+  const trazaInf = {
+    type: 'scatter', mode: 'lines', name: 'Banda de confianza 95%',
+    x: puntos.map(p => p.fecha_proyectada), y: puntos.map(p => p.banda_inferior),
+    line: { color: '#1F3864', width: 1, dash: 'dot' },
+    fill: 'tonexty', fillcolor: 'rgba(59,130,246,0.08)'
+  };
+
+  const layout = {
+    paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+    font: { family: 'Inter, sans-serif', size: 10, color: '#9FB0CE' },
+    margin: { l: 55, r: 10, t: 10, b: 30 },
+    xaxis: { showgrid: false, linecolor: '#1F3864' },
+    yaxis: { showgrid: true, gridcolor: '#1F3864', linecolor: '#1F3864', tickprefix: '$' },
+    legend: { orientation: 'h', y: -0.25, font: { color: '#9FB0CE', size: 9 } }
+  };
+  Plotly.react('plot-lstmreg', [trazaSup, trazaInf, trazaPred], layout, { responsive: true, displayModeBar: false });
+
+  const m = E.lstmReg.metricas || {};
+  document.getElementById('lstmreg-metricas').innerHTML = [
+    { l: 'RMSE', v: m.rmse_usd !== undefined ? '$' + m.rmse_usd.toFixed(2) : '—' },
+    { l: 'MAE', v: m.mae_usd !== undefined ? '$' + m.mae_usd.toFixed(2) : '—' },
+    { l: 'R²', v: m.r2 !== undefined ? m.r2.toFixed(3) : '—' },
+    { l: 'Horizonte', v: horizonteMax ? horizonteMax + 'd' : '—' }
+  ].map(x => `
+    <div class="px-2 py-2 rounded-lg bg-navy-deep border border-navy-border text-center">
+      <div class="text-[9px] uppercase text-ink-300 font-bold">${x.l}</div>
+      <div class="text-sm font-extrabold text-sky">${x.v}</div>
+    </div>`).join('');
+}
+
+/* =================================================================
+   PANEL 6: Sentimiento NLP (Notebook 7)
+   ================================================================= */
+function renderSentimiento() {
+  const contenido = document.getElementById('nlp-contenido');
+  const vacio = document.getElementById('nlp-vacio');
+
+  if (!E.nlp) {
+    contenido.classList.add('hidden');
+    vacio.classList.remove('hidden');
+    return;
+  }
+  contenido.classList.remove('hidden');
+  vacio.classList.add('hidden');
+
+  const claseBadge = {
+    Bullish: 'bg-mint/15 text-mint border-mint/40',
+    Bearish: 'bg-coral/15 text-coral border-coral/40',
+    Neutral: 'bg-gold/15 text-gold border-gold/40'
+  };
+  const badge = document.getElementById('nlp-badge');
+  badge.textContent = E.nlp.clasificacion_general || '—';
+  badge.className = 'px-4 py-2 rounded-xl border text-sm font-extrabold text-center min-w-[110px] ' +
+    (claseBadge[E.nlp.clasificacion_general] || 'bg-navy-deep text-ink-300 border-navy-border');
+
+  document.getElementById('nlp-score').textContent = E.nlp.score_promedio !== undefined ? E.nlp.score_promedio.toFixed(4) : '—';
+  document.getElementById('nlp-cantidad').textContent = `${E.nlp.cantidad_noticias ?? 0} noticias analizadas`;
+
+  const claseTexto = { Bullish: 'text-mint', Bearish: 'text-coral', Neutral: 'text-gold' };
+  document.getElementById('nlp-noticias').innerHTML = (E.nlp.noticias || []).slice(0, 8).map(n => `
+    <div class="px-3 py-2 rounded-lg bg-navy-deep border border-navy-border">
+      <div class="text-xs text-ink-100">${n.titulo}</div>
+      <div class="flex items-center justify-between mt-1">
+        <span class="text-[10px] text-ink-500">${n.publicador || 'Desconocido'} · ${n.fecha_publicacion || ''}</span>
+        <span class="text-[10px] font-bold ${claseTexto[n.clasificacion] || 'text-ink-300'}">${n.clasificacion || ''}</span>
+      </div>
+    </div>`).join('') || '<p class="text-xs text-ink-500">Sin noticias disponibles.</p>';
+}
+
+/* =================================================================
+   PANEL 2b: Señal consolidada real + hiperparámetros + métricas
+   ================================================================= */
+function renderSenalYMetricas() {
+  const p = (E.svc && E.svc.prediccion) || {};
+  const m = (E.svc && E.svc.metricas) || {};
+
+  ['luzBuy', 'luzSell'].forEach(id => document.getElementById(id).className = 'luz-semaforo');
+
+  if (p.senal === 'BUY') {
+    document.getElementById('luzBuy').classList.add('on-buy');
+    document.getElementById('textoSenal').textContent = '▲ BUY';
+    document.getElementById('textoSenal').className = 'text-center font-extrabold text-xl mt-2 text-mint';
+  } else if (p.senal === 'SELL') {
+    document.getElementById('luzSell').classList.add('on-sell');
+    document.getElementById('textoSenal').textContent = '▼ SELL';
+    document.getElementById('textoSenal').className = 'text-center font-extrabold text-xl mt-2 text-coral';
+  } else {
+    document.getElementById('textoSenal').textContent = 'Sin predicción disponible';
+    document.getElementById('textoSenal').className = 'text-center font-extrabold text-xl mt-2 text-ink-500';
+  }
+
+  const conf = p.confianza !== undefined && p.confianza !== null ? (p.confianza * 100).toFixed(1) + '%' : '—';
+  document.getElementById('subTextoSenal').textContent = p.senal ? `Confianza del modelo SVC: ${conf}` : '';
+
+  const hparams = document.getElementById('hparams-container');
+  if (m.mejor_kernel !== undefined) {
+    hparams.innerHTML = `
+      <span class="px-3 py-1.5 rounded-lg border border-navy-border bg-navy-deep text-[11px] font-mono text-ink-300">kernel=<span class="text-sky font-bold">${m.mejor_kernel}</span></span>
+      <span class="px-3 py-1.5 rounded-lg border border-navy-border bg-navy-deep text-[11px] font-mono text-ink-300">C=<span class="text-sky font-bold">${m.mejor_C}</span></span>
+      <span class="px-3 py-1.5 rounded-lg border border-navy-border bg-navy-deep text-[11px] font-mono text-ink-300">gamma=<span class="text-sky font-bold">${m.mejor_gamma}</span></span>
+    `;
+  } else {
+    hparams.innerHTML = '<span class="text-xs text-ink-500">Hiperparámetros no disponibles</span>';
+  }
+
+  document.getElementById('metricas').innerHTML = [
+    { l: 'Accuracy',  v: m.accuracy,  c: 'text-sky',  bgc: 'bg-sky' },
+    { l: 'Precision', v: m.precision, c: 'text-mint', bgc: 'bg-mint' },
+    { l: 'Recall',    v: m.recall,    c: 'text-gold', bgc: 'bg-gold' },
+    { l: 'F1-Score',  v: m.f1,        c: 'text-teal', bgc: 'bg-teal' }
+  ].map(x => {
+    const pct = (x.v !== undefined && x.v !== null) ? (x.v * 100).toFixed(1) : '0.0';
+    return `
+    <div class="px-4 py-3 rounded-xl bg-navy-deep border border-navy-border flex flex-col justify-between">
+      <div class="text-[10px] uppercase font-bold tracking-wide text-ink-300 mb-1">${x.l}</div>
+      <div class="text-xl font-extrabold ${x.c}">${pct}%</div>
+      <div class="h-1.5 w-full bg-navy-base rounded-full mt-2 overflow-hidden">
+        <div class="h-full ${x.bgc}" style="width: ${pct}%"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* =================================================================
+   PANEL 3: Matriz de confusión real
+   ================================================================= */
+function renderMatriz() {
+  const m = (E.svc && E.svc.metricas) || {};
+  const cont = document.getElementById('matriz-container');
+  const cm = m.matriz_confusion;
+
+  if (!cm) {
+    cont.innerHTML = '<p class="text-sm text-ink-500">Matriz de confusión no disponible para este ticker.</p>';
+    return;
+  }
+
+  const total = cm[0][0] + cm[0][1] + cm[1][0] + cm[1][1];
+  const maxVal = Math.max(cm[0][0], cm[0][1], cm[1][0], cm[1][1]);
+
+  function celda(val, isDiag, realLbl) {
+    const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
+    const intensity = maxVal > 0 ? val / maxVal : 0;
+    const baseColor = isDiag ? '38, 166, 154' : '239, 83, 80';
+    const bg = `rgba(${baseColor}, ${0.05 + (intensity * 0.6)})`;
+    const textColor = intensity > 0.5 ? 'text-white' : 'text-ink-100';
+
+    return `
+      <div class="flex flex-col items-center justify-center p-3 rounded-xl border ${isDiag ? 'border-teal/30' : 'border-coral/20'} transition-transform hover:scale-[1.02]" style="background: ${bg}; min-height: 85px;">
+        <div class="text-[10px] font-bold text-ink-300 mb-1 uppercase">${realLbl} Real</div>
+        <div class="text-2xl font-extrabold ${textColor}">${val}</div>
+        <div class="text-[10px] font-bold text-ink-300 mt-1 opacity-80">${pct}%</div>
+      </div>`;
+  }
+
+  cont.innerHTML = `
+    <div class="flex w-full overflow-x-auto pb-2">
+      <div class="flex flex-col justify-center items-center mr-2 shrink-0">
+        <div class="text-[10px] font-bold text-ink-300 uppercase tracking-widest" style="writing-mode: vertical-rl; transform: rotate(180deg);">Clase Real</div>
+      </div>
+      <div class="flex flex-col justify-center gap-3 mr-3 pt-6 text-right shrink-0">
+        <div class="h-[85px] flex items-center justify-end text-[10px] font-bold text-ink-300 uppercase">SELL</div>
+        <div class="h-[85px] flex items-center justify-end text-[10px] font-bold text-ink-300 uppercase">BUY</div>
+      </div>
+      <div class="flex-1 min-w-[220px]">
+        <div class="grid grid-cols-2 gap-3 mb-2 text-center">
+          <div class="text-[10px] font-bold text-ink-300 uppercase">Pred. SELL</div>
+          <div class="text-[10px] font-bold text-ink-300 uppercase">Pred. BUY</div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          ${celda(cm[0][0], true, 'SELL')} ${celda(cm[0][1], false, 'SELL')}
+          ${celda(cm[1][0], false, 'BUY')}  ${celda(cm[1][1], true, 'BUY')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* =================================================================
+   LÓGICA PRINCIPAL — igual patrón que modulo_svc.html
+   ================================================================= */
+async function cargarDashboard() {
+  const ticker = document.getElementById('selTicker').value;
+  const apiUrl = getApiUrl();
+
+  if (!apiUrl) {
+    mostrarAviso('error', 'No hay URL de API. Vuelve al portal y verifica la conexión.');
+    limpiarPaneles();
+    return;
+  }
+
+  try {
+    mostrarAviso('info', 'Obteniendo datos reales de ' + ticker + ' desde MongoDB vía FastAPI...');
+
+    const headers = { 'ngrok-skip-browser-warning': 'true' };
+    const [rMercado, rSVC, rRNN, rBacktest, rLstmReg, rNlp] = await Promise.all([
+      fetch(apiUrl + '/api/mercado/' + ticker, { headers }),
+      fetch(apiUrl + '/api/svc/' + ticker, { headers }),
+      fetch(apiUrl + '/api/rnn/' + ticker, { headers }),
+      fetch(apiUrl + '/api/backtest/' + ticker, { headers }),
+      fetch(apiUrl + '/api/lstm-regressor/' + ticker, { headers }),
+      fetch(apiUrl + '/api/sentimiento/' + ticker, { headers })
+    ]);
+
+    if (!rMercado.ok) throw new Error('HTTP ' + rMercado.status);
+
+    E.mercado = await rMercado.json();
+    E.svc = rSVC.ok ? await rSVC.json() : null;
+    E.rnn = rRNN.ok ? await rRNN.json() : null;
+    E.backtest = rBacktest.ok ? (await rBacktest.json()).backtest : null;
+    E.lstmReg = rLstmReg.ok ? await rLstmReg.json() : null;
+    E.nlp = rNlp.ok ? (await rNlp.json()).sentimiento : null;
+
+    renderCandlestick(ticker);
+    renderTablaModelos();
+    renderSenalYMetricas();
+    renderMatriz();
+    renderBacktest();
+    renderLstmRegressor();
+    renderSentimiento();
+
+    document.getElementById('aviso').innerHTML = '';
+  } catch (e) {
+    mostrarAviso('error', 'No hay URL de API. Vuelve al portal y verifica la conexión.');
+    limpiarPaneles();
+  } finally {
+    verificarSalud();
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  verificarSalud();
+  cargarDashboard();
+});
+</script>
+</body>
+</html>
