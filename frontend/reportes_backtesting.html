@@ -65,12 +65,6 @@
         <a href="home.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-navy-border text-ink-300 text-sm hover:border-teal/60 hover:text-teal transition-colors">
           <i data-lucide="home" class="w-4 h-4"></i> Portal
         </a>
-        <a href="modulo_svc.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-navy-border text-ink-300 text-sm hover:border-teal/60 hover:text-teal transition-colors">
-          <i data-lucide="gauge" class="w-4 h-4"></i> Clasificador SVC
-        </a>
-        <a href="dashboard_completo.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-navy-border text-ink-300 text-sm hover:border-teal/60 hover:text-teal transition-colors">
-          <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard Completo
-        </a>
       </nav>
     </div>
   </header>
@@ -210,7 +204,7 @@
 lucide.createIcons();
 
 /* =================================================================
-   CONEXIÓN CON LA API — mismo patrón que modulo_svc.html
+   CONEXIÓN CON LA API
    ================================================================= */
 function getApiUrl() {
   return sessionStorage.getItem('API_URL');
@@ -482,7 +476,7 @@ function renderPaginacion() {
 }
 
 /* =================================================================
-   LÓGICA PRINCIPAL — igual patrón que modulo_svc.html
+   LÓGICA PRINCIPAL
    ================================================================= */
 async function cargarBacktest() {
   const ticker = document.getElementById('selTicker').value;
