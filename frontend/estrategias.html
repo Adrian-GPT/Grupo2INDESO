@@ -53,7 +53,7 @@
 
 <body class="bg-navy-base text-ink-100 font-sans antialiased flex flex-col min-h-screen">
 
-<!-- ============ HEADER (igual que modulo_svc.html) ============ -->
+<!-- ============ HEADER ============ -->
 <header class="border-b border-navy-border/60 bg-navy-deep/40">
   <div class="max-w-6xl mx-auto px-6 py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div class="flex items-center gap-3">
@@ -68,9 +68,6 @@
     <nav class="flex flex-wrap gap-2">
       <a href="home.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-navy-border text-ink-300 text-sm hover:border-teal/60 hover:text-teal transition-colors">
         <i data-lucide="home" class="w-4 h-4"></i> Portal
-      </a>
-      <a href="modulo_svc.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-navy-border text-ink-300 text-sm hover:border-teal/60 hover:text-teal transition-colors">
-        <i data-lucide="shield-check" class="w-4 h-4"></i> Clasificador SVC
       </a>
     </nav>
   </div>
@@ -297,7 +294,7 @@
   let cargando = false;
 
   /* =================================================================
-     CONEXIÓN A LA API (misma lógica que modulo_svc.html)
+     CONEXIÓN A LA API
      ================================================================= */
   function getApiUrl() {
     return sessionStorage.getItem('API_URL');
